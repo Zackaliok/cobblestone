@@ -17,7 +17,11 @@ tauri-build = { version = "2", features = [] }
 # uniquement l'enregistrement des plugins officiels. Toute la logique vit dans
 # `src/core/`, en TypeScript, testable sans toolchain Rust.
 [dependencies]
-tauri = { version = "2", features = [] }
+# `devtools` ouvre l'inspecteur de la webview en build release. Tauri le réserve
+# normalement au mode debug ; on l'active parce que les builds de test partent
+# chez des collègues, et qu'un rapport de bug accompagné de la console vaut dix
+# allers-retours. À retirer avant toute diffusion plus large.
+tauri = { version = "2", features = ["devtools"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = { version = "2", features = ["watch"] }
 tauri-plugin-opener = "2"

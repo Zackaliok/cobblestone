@@ -1,0 +1,73 @@
+name: Build Windows
+
+# Déclenchement manuel uniquement. Un runner Windows sur dépôt privé consomme
+# des minutes au double du tarif, et un build Tauri complet dure une quinzaine
+# de minutes : le lancer à chaque push n'apporterait rien ici.
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Installeur NSIS + exécutable portable
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # Sans ce cache, chaque build recompile les ~500 crates de Tauri et de ses
+      # plugins. Avec, les builds suivants tombent à quelques minutes.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      # Un build qui part chez quelqu'un d'autre ne doit pas embarquer une
+      # régression silencieuse. Le typecheck et le build Vite sont déjà couverts
+      # par `beforeBuildCommand` dans tauri.conf.json.
+      - name: Tests unitaires
+        run: npm test
+
+      - name: Build Tauri
+        run: npm run tauri build
+
+      - name: Assembler l'exécutable portable
+        shell: pwsh
+        run: |
+          $release = 'src-tauri/target/release'
+          $exe = Get-ChildItem -Path $release -Filter *.exe -File | Select-Object -First 1
+          if (-not $exe) { throw "Aucun exécutable trouvé dans $release" }
+          Write-Host "Exécutable : $($exe.Name) ($([math]::Round($exe.Length/1MB,1)) Mo)"
+          New-Item -ItemType Directory -Force -Path dist-portable | Out-Null
+          Copy-Item $exe.FullName dist-portable/
+          Copy-Item TEST-BUILD.md dist-portable/
+          Compress-Archive -Path dist-portable/* -DestinationPath Cobblestone-portable.zip -Force
+
+      - name: Récapitulatif
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe |
+                   Select-Object -First 1
+          "### Build de test" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "- Installeur : ``$($setup.Name)`` ($([math]::Round($setup.Length/1MB,1)) Mo)" |
+            Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "- Commit : ``$env:GITHUB_SHA``" |
+            Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cobblestone-test-${{ github.sha }}
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            src-tauri/target/release/bundle/nsis/*-setup.exe
+            Cobblestone-portable.zip
+            TEST-BUILD.md
