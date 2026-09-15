@@ -3,6 +3,8 @@
 Application desktop (Tauri 2.0) de gestion de documentation MDX : notes personnelles,
 documentation de monorepo et wiki, réunies dans une même interface via des **workspaces**.
 
+**TRES LEGER EN CONSOMMATION DE MEMOIRE VIVE**
+
 Spécification complète : [PLAN.md](./PLAN.md).
 
 ---
