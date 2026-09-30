@@ -58,6 +58,14 @@ Vérification :
 rustc --version && where link.exe
 ```
 
+- **Bibliothèques système** sous Linux (Debian/Ubuntu) — Tauri s'appuie sur WebKitGTK :
+
+```bash
+sudo apt update
+sudo apt install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev \
+  librsvg2-dev libssl-dev libxdo-dev patchelf file build-essential curl wget
+```
+
 `git` doit être dans le `PATH` pour que l'onglet Historique apparaisse. S'il est absent,
 l'onglet est simplement masqué.
 
