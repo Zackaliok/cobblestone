@@ -1,0 +1,78 @@
+name: Build Linux
+
+# Déclenchement manuel uniquement, comme pour le build Windows : un build Tauri
+# complet dure une quinzaine de minutes et n'a pas besoin de tourner à chaque push.
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Paquet .deb + AppImage
+    # Ubuntu 22.04 plutôt que -latest : une glibc plus ancienne donne un binaire
+    # compatible avec plus de distributions Debian/Ubuntu en aval.
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # Sans ce cache, chaque build recompile les ~500 crates de Tauri et de ses
+      # plugins. Avec, les builds suivants tombent à quelques minutes.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Installer les dépendances système Tauri
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libxdo-dev \
+            patchelf \
+            file \
+            build-essential \
+            curl \
+            wget
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      # Un build qui part chez quelqu'un d'autre ne doit pas embarquer une
+      # régression silencieuse. Le typecheck et le build Vite sont déjà couverts
+      # par `beforeBuildCommand` dans tauri.conf.json.
+      - name: Tests unitaires
+        run: npm test
+
+      - name: Build Tauri
+        run: npm run tauri build
+
+      - name: Récapitulatif
+        run: |
+          bundle=src-tauri/target/release/bundle
+          deb=$(find "$bundle/deb" -name '*.deb' | head -n1)
+          appimage=$(find "$bundle/appimage" -name '*.AppImage' | head -n1)
+          {
+            echo "### Build de test"
+            echo "- Paquet .deb : \`$(basename "$deb")\` ($(du -h "$deb" | cut -f1))"
+            echo "- AppImage : \`$(basename "$appimage")\` ($(du -h "$appimage" | cut -f1))"
+            echo "- Commit : \`$GITHUB_SHA\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cobblestone-linux-test-${{ github.sha }}
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/appimage/*.AppImage
+            TEST-BUILD-LINUX.md
