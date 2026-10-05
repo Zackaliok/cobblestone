@@ -54,6 +54,59 @@ Participants : équipe doc, équipe plateforme.
 Voir aussi [[idees/graphe-de-connaissances]] et [[index|la page d'accueil]].
 `,
 
+  'syntaxe-etendue.md': `---
+title: Syntaxe Markdown étendue
+tags: [aide]
+---
+
+# Syntaxe Markdown étendue {#syntaxe}
+
+Tout ce que propose [le guide](https://www.markdownguide.org/extended-syntax/),
+rendu par l'aperçu. Retour à l'[[index]].
+
+## Texte
+
+~~Barré~~, ==surligné==, H~2~O en indice, E = mc^2^ en exposant. Les adresses
+deviennent des liens : https://www.markdownguide.org.
+
+Une affirmation qui mérite une source[^source].
+
+[^source]: Les notes de bas de page sont regroupées en fin de document.
+
+## Listes de tâches
+
+- [x] Lire le guide
+- [ ] Cocher une case dans l'aperçu : la source est mise à jour
+
+## Tableau
+
+| Syntaxe | Rendu | Aligné à droite |
+| :--- | :---: | ---: |
+| \`~~x~~\` | ~~x~~ | 1 |
+| \`==x==\` | ==x== | 22 |
+
+## Définitions
+
+Cobblestone
+: Clone d'Obsidian pour la documentation de monorepo.
+
+MDX
+: Markdown avec des composants JSX.
+
+## Code coloré
+
+\`\`\`ts
+// Les blocs de code sont colorés selon leur langage.
+export function bonjour(nom: string): string {
+  return \`Bonjour \${nom} !\`;
+}
+\`\`\`
+
+### Ancre personnalisée {#ancre}
+
+Ce titre a l'identifiant \`ancre\` : [y aller](#ancre).
+`,
+
   'idees/graphe-de-connaissances.mdx': `---
 title: Graphe de connaissances
 tags: [idée]

@@ -184,14 +184,25 @@ export function extractHeadings(content: string): Heading[] {
     if (!mask[offset]) {
       const match = HEADING_PATTERN.exec(line);
       if (match) {
-        const text = match[2]!;
-        headings.push({ level: match[1]!.length, text, slug: slugifyHeading(text) });
+        // `## Titre {#ancre}` : l'identifiant explicite remplace l'ancre dérivée.
+        const { text, id } = splitHeadingId(match[2]!);
+        headings.push({ level: match[1]!.length, text, slug: id ?? slugifyHeading(text) });
       }
     }
     offset += line.length + 1;
   }
 
   return headings;
+}
+
+/** Identifiant explicite en fin de titre : `## Titre {#ancre}` (syntaxe étendue). */
+export const HEADING_ID = /\s*\{#([A-Za-z][\w-]*)\}\s*$/;
+
+/** Sépare `Titre {#ancre}` en texte et identifiant explicite. */
+export function splitHeadingId(text: string): { text: string; id?: string } {
+  const match = HEADING_ID.exec(text);
+  if (!match) return { text };
+  return { text: text.slice(0, match.index), id: match[1]! };
 }
 
 export function slugifyHeading(text: string): string {

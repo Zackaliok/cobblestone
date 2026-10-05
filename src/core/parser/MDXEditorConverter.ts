@@ -16,6 +16,7 @@ export type EditorBlock =
   | { type: 'header'; data: { text: string; level: number } }
   | { type: 'paragraph'; data: { text: string } }
   | { type: 'list'; data: { style: 'ordered' | 'unordered'; items: string[] } }
+  | { type: 'checklist'; data: { items: Array<{ text: string; checked: boolean }> } }
   | { type: 'quote'; data: { text: string; caption: string } }
   | { type: 'delimiter'; data: Record<string, never> }
   | { type: 'mdx'; data: { code: string } };
@@ -29,6 +30,12 @@ export interface EditorDocument {
 const HEADING = /^(#{1,6})\s+(.*)$/;
 const UNORDERED_ITEM = /^[-*+]\s+(.*)$/;
 const ORDERED_ITEM = /^\d+[.)]\s+(.*)$/;
+/**
+ * Élément de liste de tâches, sous la seule forme que le bloc checklist sait
+ * réécrire à l'identique : `- [ ] ` ou `- [x] `. Les variantes (`* [X]`,
+ * `1. [ ]`) restent des listes ordinaires, où la case est du simple texte.
+ */
+const TASK_ITEM = /^- \[( |x)\] (.*)$/;
 const THEMATIC_BREAK = /^(?:-{3,}|\*{3,}|_{3,})\s*$/;
 const FENCE_OPEN = /^(`{3,}|~{3,})(.*)$/;
 const JSX_OPEN = /^<([A-Za-z][\w.-]*)/;
@@ -243,6 +250,16 @@ function consumeList(lines: string[], start: number, blocks: EditorBlock[]): num
 
   if (nested) {
     blocks.push({ type: 'mdx', data: { code: collected.join('\n') } });
+  } else if (collected.every((line) => TASK_ITEM.test(line))) {
+    blocks.push({
+      type: 'checklist',
+      data: {
+        items: collected.map((line) => {
+          const [, mark, text] = TASK_ITEM.exec(line)!;
+          return { text: markdownToHtml(text!), checked: mark === 'x' };
+        }),
+      },
+    });
   } else {
     blocks.push({
       type: 'list',
@@ -305,6 +322,13 @@ export function blocksToMdx(blocks: EditorBlock[]): string {
         chunks.push(lines.join('\n'));
         break;
       }
+      case 'checklist':
+        chunks.push(
+          block.data.items
+            .map((item) => `- [${item.checked ? 'x' : ' '}] ${htmlToMarkdown(item.text)}`)
+            .join('\n'),
+        );
+        break;
       case 'quote': {
         const body = htmlToMarkdown(block.data.text)
           .split('\n')
