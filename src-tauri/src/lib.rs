@@ -21,6 +21,10 @@ pub fn run() {
         // fichiers. Sans lui, l'utilisateur devrait re-choisir chacun de ses
         // workspaces à chaque lancement.
         .plugin(tauri_plugin_persisted_scope::init())
+        // Mise à jour automatique depuis les releases GitHub. `process` ne sert
+        // qu'à relancer l'application une fois la nouvelle version installée.
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .run(tauri::generate_context!())
         .expect("erreur au lancement de Cobblestone");
 }

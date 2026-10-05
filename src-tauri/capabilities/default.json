@@ -10,6 +10,9 @@
     "dialog:allow-open",
     "store:default",
 
+    "updater:default",
+    "process:allow-restart",
+
     "fs:allow-read-text-file",
     "fs:allow-write-text-file",
     "fs:allow-read-dir",
