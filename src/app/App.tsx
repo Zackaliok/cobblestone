@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect } from 'react';
 
 import { BottomPanel } from './components/BottomPanel';
+import { ConflictBanner } from './components/ConflictBanner';
 import { Editor } from './components/Editor';
 import { HistoryPanel } from './components/HistoryPanel';
 import { SearchBar } from './components/SearchBar';
@@ -23,6 +24,7 @@ export function App() {
   const ready = useDocStore((state) => state.ready);
   const initialize = useDocStore((state) => state.initialize);
   const save = useDocStore((state) => state.save);
+  const checkExternalChanges = useDocStore((state) => state.checkExternalChanges);
   const view = useDocStore((state) => state.view);
   const status = useDocStore((state) => state.status);
   const setStatus = useDocStore((state) => state.setStatus);
@@ -46,6 +48,21 @@ export function App() {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [save]);
+
+  // Comme dans un IDE : en revenant sur la fenêtre, on vérifie que le fichier
+  // ouvert n'a pas été modifié entre-temps par un autre outil.
+  useEffect(() => {
+    const onFocus = () => void checkExternalChanges();
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') onFocus();
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [checkExternalChanges]);
 
   // Le message de statut s'efface tout seul, sauf s'il s'agit d'une erreur.
   useEffect(() => {
@@ -103,6 +120,8 @@ export function App() {
               </button>
             </div>
           </div>
+
+          <ConflictBanner />
 
           <div className="app__view">
             <Suspense fallback={<div className="boot">Chargement de la vue…</div>}>

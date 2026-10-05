@@ -28,8 +28,12 @@ const SYNC_DELAY_MS = 300;
  * par les blocs le transformerait en paragraphes et détruirait le YAML.
  */
 export function Editor({ mode }: { mode: 'wysiwyg' | 'source' }) {
+  // Un rechargement depuis le disque reconstruit tout l'éditeur, panneau
+  // Propriétés compris : tous deux ne lisent le brouillon qu'au montage.
+  const revision = useDocStore((state) => state.revision);
+
   if (mode === 'source') return <SourceEditor />;
-  return <WysiwygEditor />;
+  return <WysiwygEditor key={revision} />;
 }
 
 function WysiwygEditor() {
