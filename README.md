@@ -22,6 +22,7 @@ développé pour l'instant.
 | Liens `[[wiki-link]]`, y compris cross-workspace `[[Workspace:page]]` | ✅ |
 | Éditeur WYSIWYG (Editor.js) + éditeur source, aller-retour sans perte | ✅ |
 | Aperçu MDX avec `Callout`, `Accordion`, `Toggle` et liens cliquables | ✅ |
+| Syntaxe Markdown étendue : tableaux, tâches, notes, définitions, ==surligné==, H~2~O, x^2^, `{#ancre}`, code coloré | ✅ |
 | Graphe de connaissances (workspace / global), liens cassés, orphelines | ✅ |
 | Recherche full-text insensible aux accents | ✅ |
 | Historique Git local, en lecture seule | ✅ |

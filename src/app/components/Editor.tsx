@@ -1,3 +1,4 @@
+import Checklist from '@editorjs/checklist';
 import EditorJS, { type OutputData } from '@editorjs/editorjs';
 import Delimiter from '@editorjs/delimiter';
 import Header from '@editorjs/header';
@@ -68,6 +69,7 @@ function WysiwygEditor() {
           config: { levels: [1, 2, 3, 4], defaultLevel: 2 },
         },
         list: { class: List as never, inlineToolbar: true },
+        checklist: { class: Checklist as never, inlineToolbar: true },
         quote: { class: Quote as never, inlineToolbar: true },
         delimiter: { class: Delimiter as never },
         marker: { class: Marker as never },
