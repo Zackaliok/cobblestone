@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { activeEmojiQuery, type EmojiEntry } from '../../core/emoji/emoji';
+import { rememberEmoji, useEmojiSuggestions } from '../emoji';
 import { useAllNotes } from '../hooks/useWorkspace';
 import { useDocStore } from '../store/DocStore';
 import { EmptyState } from './Editor';
+import { EmojiMenu } from './EmojiMenu';
 
 const MAX_SUGGESTIONS = 8;
 
@@ -45,7 +48,19 @@ export function SourceEditor() {
       .slice(0, MAX_SUGGESTIONS);
   }, [query, targets]);
 
+  // Émojis : `:roc` -> 🚀. Un wiki-link en cours d'écriture a la priorité.
+  const emojiQuery = useMemo(
+    () => (query === null && caret >= 0 ? activeEmojiQuery(draft.slice(0, caret)) : null),
+    [query, draft, caret],
+  );
+  const emojis = useEmojiSuggestions(emojiQuery);
+  const [navigated, setNavigated] = useState(false);
+
   useEffect(() => setHighlighted(0), [query]);
+  useEffect(() => {
+    setHighlighted(0);
+    setNavigated(false);
+  }, [emojiQuery]);
 
   if (!open) return <EmptyState />;
 
@@ -66,7 +81,47 @@ export function SourceEditor() {
     });
   };
 
+  const insertEmoji = (entry: EmojiEntry) => {
+    const textarea = textareaRef.current;
+    if (!textarea || emojiQuery === null) return;
+
+    const start = caret - emojiQuery.length - 1;
+    const next = `${draft.slice(0, start)}${entry.emoji}${draft.slice(caret)}`;
+    const position = start + entry.emoji.length;
+
+    rememberEmoji(entry.emoji);
+    setDraft(next);
+    requestAnimationFrame(() => {
+      textarea.focus();
+      textarea.setSelectionRange(position, position);
+      setCaret(position);
+    });
+  };
+
+  const onEmojiKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const step = event.key === 'ArrowDown' ? 1 : -1;
+      setHighlighted((index) => (index + step + emojis.length) % emojis.length);
+      setNavigated(true);
+    } else if ((event.key === 'Enter' || event.key === 'Tab') && (emojiQuery || navigated)) {
+      // Sans saisie après le `:` (« Remarque : » en fin de ligne), Entrée garde
+      // son sens habituel, sauf si l'on a choisi dans le menu.
+      const entry = emojis[highlighted];
+      if (entry) {
+        event.preventDefault();
+        insertEmoji(entry);
+      }
+    } else if (event.key === 'Escape') {
+      setCaret(-1);
+    }
+  };
+
   const onKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (emojis.length > 0) {
+      onEmojiKeyDown(event);
+      return;
+    }
     if (suggestions.length === 0) return;
 
     if (event.key === 'ArrowDown') {
@@ -101,11 +156,19 @@ export function SourceEditor() {
           setDraft(event.target.value);
           setCaret(event.target.selectionStart);
         }}
-        onKeyUp={syncCaret}
+        // Échap ferme les suggestions en invalidant le curseur : le relire au
+        // relâchement de la touche les rouvrirait aussitôt.
+        onKeyUp={(event) => {
+          if (event.key !== 'Escape') syncCaret(event);
+        }}
         onClick={syncCaret}
         onKeyDown={onKeyDown}
         placeholder="# Titre&#10;&#10;Votre contenu MDX…"
       />
+
+      {emojis.length > 0 && (
+        <EmojiMenu suggestions={emojis} highlighted={highlighted} onPick={insertEmoji} />
+      )}
 
       {suggestions.length > 0 && (
         <ul className="suggestions" role="listbox" aria-label="Cibles de wiki-link">

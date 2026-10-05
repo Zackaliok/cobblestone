@@ -1,13 +1,18 @@
 import { evaluate } from '@mdx-js/mdx';
+import { gemoji } from 'gemoji';
 import type { MDXComponents } from 'mdx/types';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import * as runtime from 'react/jsx-runtime';
 
+import { buildShortcodeIndex, remarkEmojiShortcodes } from '../../core/emoji/emoji';
 import { buildCodeMask, parseFrontmatter, slugifyHeading } from '../../core/parser/MDXParser';
 import { useDocStore } from '../store/DocStore';
 import { EmptyState } from './Editor';
 
 const COMPILE_DELAY_MS = 300;
+
+/** `:rocket:` -> 🚀, avec les noms courts de GitHub. */
+const remarkEmoji = remarkEmojiShortcodes(buildShortcodeIndex(gemoji));
 
 /**
  * Aperçu rendu du document courant.
@@ -35,7 +40,11 @@ export function Preview() {
     let cancelled = false;
 
     const timer = window.setTimeout(() => {
-      evaluate(source, { ...runtime, baseUrl: import.meta.url } as never)
+      evaluate(source, {
+        ...runtime,
+        remarkPlugins: [remarkEmoji],
+        baseUrl: import.meta.url,
+      } as never)
         .then((module) => {
           if (cancelled) return;
           const Content = module.default as (props: {
