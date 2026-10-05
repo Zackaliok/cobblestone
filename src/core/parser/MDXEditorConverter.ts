@@ -12,12 +12,15 @@
  * qu'une conversion destructrice.
  */
 
+import { parseToggleLine, serializeToggle, type ToggleData } from './toggles';
+
 export type EditorBlock =
   | { type: 'header'; data: { text: string; level: number } }
   | { type: 'paragraph'; data: { text: string } }
   | { type: 'list'; data: { style: 'ordered' | 'unordered'; items: string[] } }
   | { type: 'quote'; data: { text: string; caption: string } }
   | { type: 'delimiter'; data: Record<string, never> }
+  | { type: 'toggle'; data: ToggleData }
   | { type: 'mdx'; data: { code: string } };
 
 export interface EditorDocument {
@@ -75,6 +78,13 @@ export function mdxToBlocks(content: string): EditorBlock[] {
 
     if (MDX_STATEMENT.test(line)) {
       index = consumeRawChunk(lines, index, blocks);
+      continue;
+    }
+
+    const toggle = parseToggleLine(line);
+    if (toggle) {
+      blocks.push({ type: 'toggle', data: toggle });
+      index += 1;
       continue;
     }
 
@@ -316,6 +326,9 @@ export function blocksToMdx(blocks: EditorBlock[]): string {
       }
       case 'delimiter':
         chunks.push('---');
+        break;
+      case 'toggle':
+        chunks.push(serializeToggle(block.data));
         break;
       case 'mdx':
         chunks.push(block.data.code);

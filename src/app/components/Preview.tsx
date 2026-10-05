@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import * as runtime from 'react/jsx-runtime';
 
 import { buildCodeMask, parseFrontmatter, slugifyHeading } from '../../core/parser/MDXParser';
+import { indexToggles, setToggleChecked } from '../../core/parser/toggles';
 import { useDocStore } from '../store/DocStore';
 import { EmptyState } from './Editor';
 
@@ -28,7 +29,7 @@ export function Preview() {
   const components = useMDXComponentMap();
   const source = useMemo(() => {
     const { content: body } = parseFrontmatter(draft);
-    return replaceWikiLinks(body);
+    return replaceWikiLinks(indexToggles(body));
   }, [draft]);
 
   useEffect(() => {
@@ -140,11 +141,22 @@ function useMDXComponentMap(): MDXComponents {
         </details>
       ),
 
-      Toggle: ({ label, defaultOn }: { label?: string; defaultOn?: boolean }) => (
-        <label className="toggle">
-          <input type="checkbox" defaultChecked={Boolean(defaultOn)} />
-          <span>{label ?? 'Activé'}</span>
-        </label>
+      Toggle: ({
+        label,
+        defaultOn,
+        __toggleIndex,
+      }: {
+        label?: string;
+        defaultOn?: boolean;
+        __toggleIndex?: number;
+      }) => (
+        <ToggleView
+          label={label ?? 'Activé'}
+          checked={Boolean(defaultOn)}
+          onChange={(checked) => {
+            if (__toggleIndex !== undefined) writeToggle(__toggleIndex, checked);
+          }}
+        />
       ),
 
       a: ({ href, children }: { href?: string; children?: ReactNode }) => (
@@ -168,6 +180,50 @@ function useMDXComponentMap(): MDXComponents {
     }),
     [open, followLink],
   );
+}
+
+/**
+ * Case contrôlée localement : la source n'est recompilée qu'après un délai, la
+ * case doit donc refléter le clic tout de suite sans attendre le nouveau rendu.
+ */
+function ToggleView({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  const [value, setValue] = useState(checked);
+  useEffect(() => setValue(checked), [checked]);
+
+  return (
+    <label className="toggle">
+      <input
+        type="checkbox"
+        checked={value}
+        onChange={(event) => {
+          setValue(event.target.checked);
+          onChange(event.target.checked);
+        }}
+      />
+      <span>{label}</span>
+    </label>
+  );
+}
+
+/**
+ * Reporte l'état d'une case dans le brouillon. Le document devient « modifié »
+ * comme après n'importe quelle édition : Ctrl+S l'écrit sur le disque.
+ */
+function writeToggle(index: number, checked: boolean): void {
+  const { draft, setDraft } = useDocStore.getState();
+  const { content } = parseFrontmatter(draft);
+  // Le frontmatter est recopié à l'octet près : le resérialiser pourrait
+  // reformater le YAML alors qu'on ne touche qu'à une case.
+  const prefix = draft.slice(0, draft.length - content.length);
+  setDraft(prefix + setToggleChecked(content, index, checked));
 }
 
 function headingWithAnchor(tag: 'h1' | 'h2' | 'h3' | 'h4', children: ReactNode): ReactNode {
