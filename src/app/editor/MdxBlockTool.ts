@@ -8,6 +8,7 @@ const ICON_INFO = svg('<circle cx="8.5" cy="7.5" r="6"/><path d="M8.5 7v4M8.5 4.
 const ICON_WARNING = svg('<path d="M8.5 1.5 15.5 13.5h-14z"/><path d="M8.5 6v3.2M8.5 11.4v.1"/>');
 const ICON_CHEVRON = svg('<path d="M4 5.5 8.5 10l4.5-4.5"/>');
 const ICON_TOGGLE = svg('<rect x="1.5" y="4" width="14" height="7" rx="3.5"/><circle cx="11.5" cy="7.5" r="1.8"/>');
+const ICON_DIAGRAM = svg('<rect x="1.5" y="1.5" width="5" height="4" rx="1"/><rect x="10.5" y="9.5" width="5" height="4" rx="1"/><path d="M4 5.5v5.5h6.5"/>');
 const ICON_TABLE = svg('<rect x="1.5" y="2.5" width="14" height="10" rx="1"/><path d="M1.5 6h14M6.5 6v6.5"/>');
 
 /**
@@ -62,6 +63,11 @@ export class MdxBlockTool implements BlockTool {
         title: 'Bloc de code',
         icon: ICON_CODE,
         data: { code: '```ts\n\n```' },
+      },
+      {
+        title: 'Diagramme Mermaid',
+        icon: ICON_DIAGRAM,
+        data: { code: '```mermaid\nflowchart LR\n  A[Début] --> B{Choix}\n  B -->|Oui| C[Fin]\n  B -->|Non| A\n```' },
       },
       {
         title: 'Tableau',

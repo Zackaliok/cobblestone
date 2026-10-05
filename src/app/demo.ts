@@ -75,6 +75,17 @@ const graphe = buildGraph(notes, workspaces);
 console.log(graphe.nodes.length);
 \`\`\`
 
+Le même principe, en diagramme Mermaid :
+
+\`\`\`mermaid
+flowchart LR
+  A[Note A] -->|"[[B]]"| B[Note B]
+  B --> C[Note C]
+  A -.->|cross-workspace| D[(Projet Alpha)]
+  C --> X[page manquante]
+  style X stroke:#f7768e,color:#f7768e
+\`\`\`
+
 Retour vers [[index]].
 `,
 };

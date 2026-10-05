@@ -1,6 +1,15 @@
 import { evaluate } from '@mdx-js/mdx';
 import type { MDXComponents } from 'mdx/types';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  isValidElement,
+  lazy,
+  Suspense,
+  useEffect,
+  useMemo,
+  useState,
+  type ComponentProps,
+  type ReactNode,
+} from 'react';
 import * as runtime from 'react/jsx-runtime';
 
 import { buildCodeMask, parseFrontmatter, slugifyHeading } from '../../core/parser/MDXParser';
@@ -8,6 +17,10 @@ import { useDocStore } from '../store/DocStore';
 import { EmptyState } from './Editor';
 
 const COMPILE_DELAY_MS = 300;
+
+const MermaidDiagram = lazy(() =>
+  import('./MermaidDiagram').then((module) => ({ default: module.MermaidDiagram })),
+);
 
 /**
  * Aperçu rendu du document courant.
@@ -161,6 +174,17 @@ function useMDXComponentMap(): MDXComponents {
         </a>
       ),
 
+      // Un bloc ```mermaid devient un diagramme ; les autres restent du code.
+      pre: ({ children, ...props }: ComponentProps<'pre'>) => {
+        const diagram = mermaidSource(children);
+        if (diagram === null) return <pre {...props}>{children}</pre>;
+        return (
+          <Suspense fallback={<p className="mermaid-diagram__loading">Rendu du diagramme…</p>}>
+            <MermaidDiagram code={diagram} />
+          </Suspense>
+        );
+      },
+
       h1: (props: { children?: ReactNode }) => headingWithAnchor('h1', props.children),
       h2: (props: { children?: ReactNode }) => headingWithAnchor('h2', props.children),
       h3: (props: { children?: ReactNode }) => headingWithAnchor('h3', props.children),
@@ -168,6 +192,17 @@ function useMDXComponentMap(): MDXComponents {
     }),
     [open, followLink],
   );
+}
+
+/** Source d'un bloc ```` ```mermaid ```` (`<pre><code class="language-mermaid">`), sinon `null`. */
+function mermaidSource(children: ReactNode): string | null {
+  if (!isValidElement<{ className?: string; children?: ReactNode }>(children)) return null;
+
+  const { className, children: code } = children.props;
+  if (!className?.split(' ').includes('language-mermaid')) return null;
+
+  const text = Array.isArray(code) ? code.join('') : code;
+  return typeof text === 'string' ? text : null;
 }
 
 function headingWithAnchor(tag: 'h1' | 'h2' | 'h3' | 'h4', children: ReactNode): ReactNode {
