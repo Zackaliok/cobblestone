@@ -13,6 +13,7 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@editorjs/checklist": "^1.6.0",
     "@editorjs/delimiter": "^1.4.0",
     "@editorjs/editorjs": "^2.30.7",
     "@editorjs/header": "^2.8.7",
@@ -35,6 +36,9 @@
     "js-yaml": "^4.1.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "rehype-highlight": "^7.0.2",
+    "remark-definition-list": "^2.0.1",
+    "remark-gfm": "^4.0.1",
     "zustand": "^4.5.5"
   },
   "devDependencies": {
