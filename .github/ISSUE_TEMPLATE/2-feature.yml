@@ -1,0 +1,60 @@
+name: ✨ Nouvelle fonctionnalité
+description: Proposer quelque chose que Cobblestone ne sait pas encore faire.
+title: "Feat: "
+labels: [feature]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: Le besoin
+      description: Quel problème cela résout-il, dans quelle situation ? Le « pourquoi » aide à choisir la bonne solution.
+      placeholder: Les fichiers .mdx peuvent être modifiés par des outils externes (IA, IDE) pendant qu'ils sont ouverts dans Cobblestone…
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Ce qui est proposé
+      description: Le comportement souhaité, du point de vue de l'utilisateur. Raccourcis clavier et éléments d'interface compris.
+      placeholder: Recharger le fichier quand la fenêtre reprend le focus, comme WebStorm.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reference
+    attributes:
+      label: Exemples ailleurs
+      description: Un outil qui le fait déjà bien (VS Code, Obsidian, Notion…), un lien, une capture.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Partie de l'application concernée
+      multiple: true
+      options:
+        - Éditeur WYSIWYG
+        - Éditeur source
+        - Aperçu / rendu Markdown-MDX
+        - Graphe de connaissances
+        - Barre latérale / fichiers
+        - Recherche
+        - Workspaces
+        - Historique Git
+        - Installation / mise à jour
+        - Autre
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Comment saura-t-on que c'est terminé ?
+      description: Quelques critères vérifiables. Facultatif, mais utile pour les fonctionnalités larges.
+      placeholder: |
+        - [ ] Ctrl+ / Ctrl- zooment toute l'interface
+        - [ ] Le niveau de zoom est conservé au redémarrage
+
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Hors périmètre
+      description: Ce qui n'est volontairement pas demandé ici (peut faire l'objet d'une autre issue).
