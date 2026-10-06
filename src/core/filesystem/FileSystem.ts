@@ -18,6 +18,9 @@ export interface FileSystem {
 
   read(path: string): Promise<string>;
 
+  /** Contenu brut d'un fichier binaire (image). */
+  readBinary(path: string): Promise<Uint8Array>;
+
   /** Crée les dossiers parents manquants si nécessaire. */
   write(path: string, content: string): Promise<void>;
 
@@ -73,6 +76,56 @@ export const MDX_EXTENSIONS = ['.mdx', '.md'];
 export function isDocumentFile(name: string): boolean {
   const lower = name.toLowerCase();
   return MDX_EXTENSIONS.some((ext) => lower.endsWith(ext));
+}
+
+/** Images affichées par Cobblestone : dans l'arborescence, le WYSIWYG et l'aperçu. */
+export const IMAGE_MIME_TYPES: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+};
+
+export function imageMimeType(name: string): string | undefined {
+  const lower = name.toLowerCase();
+  const dot = lower.lastIndexOf('.');
+  return dot === -1 ? undefined : IMAGE_MIME_TYPES[lower.slice(dot)];
+}
+
+export function isImageFile(name: string): boolean {
+  return imageMimeType(name) !== undefined;
+}
+
+/** Fichiers remontés dans l'arborescence d'un workspace : documents et images. */
+export function isWorkspaceFile(name: string): boolean {
+  return isDocumentFile(name) || isImageFile(name);
+}
+
+/**
+ * Résout la source d'une image Markdown en chemin relatif à la racine du
+ * workspace.
+ *
+ * - `img/a.png`, `./img/a.png`, `../img/a.png` : relatifs au dossier de la note ;
+ * - `/img/a.png` : relatif à la racine du workspace ;
+ * - `https://…`, `data:…`, ou un chemin qui sort du workspace : `null`, l'image
+ *   n'est pas un fichier du workspace.
+ */
+export function resolveImagePath(notePath: string, src: string): string | null {
+  const trimmed = src.trim();
+  if (!trimmed || /^[a-z][a-z0-9+.-]*:/i.test(trimmed) || trimmed.startsWith('//')) return null;
+
+  let decoded = trimmed;
+  try {
+    decoded = decodeURI(trimmed);
+  } catch {
+    // `%` isolé : on garde la source telle quelle.
+  }
+
+  const target = decoded.startsWith('/') ? decoded : joinPath(dirname(notePath), decoded);
+  try {
+    return normalizeRelativePath(target) || null;
+  } catch {
+    return null;
+  }
 }
 
 /**

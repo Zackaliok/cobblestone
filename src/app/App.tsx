@@ -3,6 +3,7 @@ import { lazy, Suspense, useEffect } from 'react';
 import { BottomPanel } from './components/BottomPanel';
 import { Editor } from './components/Editor';
 import { HistoryPanel } from './components/HistoryPanel';
+import { ImageViewer } from './components/ImageViewer';
 import { SearchBar } from './components/SearchBar';
 import { Sidebar } from './components/Sidebar';
 import { WorkspaceTabs } from './components/WorkspaceTabs';
@@ -27,6 +28,7 @@ export function App() {
   const status = useDocStore((state) => state.status);
   const setStatus = useDocStore((state) => state.setStatus);
   const open = useDocStore((state) => state.open);
+  const openImage = useDocStore((state) => state.openImage);
   const dirty = useIsDirty();
   const workspace = useActiveWorkspace();
 
@@ -105,13 +107,18 @@ export function App() {
           </div>
 
           <div className="app__view">
-            <Suspense fallback={<div className="boot">Chargement de la vue…</div>}>
-              {view === 'wysiwyg' && <Editor mode="wysiwyg" />}
-              {view === 'source' && <Editor mode="source" />}
-              {view === 'preview' && <Preview />}
-              {view === 'graph' && <GraphView />}
-              {view === 'history' && <HistoryPanel />}
-            </Suspense>
+            {openImage ? (
+              // Clé par image : changer d'image repart de l'ajustement à la fenêtre.
+              <ImageViewer key={`${openImage.workspaceId}::${openImage.path}`} />
+            ) : (
+              <Suspense fallback={<div className="boot">Chargement de la vue…</div>}>
+                {view === 'wysiwyg' && <Editor mode="wysiwyg" />}
+                {view === 'source' && <Editor mode="source" />}
+                {view === 'preview' && <Preview />}
+                {view === 'graph' && <GraphView />}
+                {view === 'history' && <HistoryPanel />}
+              </Suspense>
+            )}
           </div>
         </main>
       </div>
@@ -131,15 +138,17 @@ export function App() {
 }
 
 function ViewTab({ id, label }: { id: EditorView; label: string }) {
-  const view = useDocStore((state) => state.view);
+  // Pendant l'affichage d'une image, aucun onglet n'est actif : en cliquer un
+  // ferme l'image et revient au document.
+  const active = useDocStore((state) => state.view === id && !state.openImage);
   const setView = useDocStore((state) => state.setView);
 
   return (
     <button
       type="button"
-      className={view === id ? 'is-active' : ''}
+      className={active ? 'is-active' : ''}
       onClick={() => setView(id)}
-      aria-current={view === id}
+      aria-current={active}
     >
       {label}
     </button>

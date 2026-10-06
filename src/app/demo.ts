@@ -152,6 +152,13 @@ Documentation vivant directement dans le repo du projet.
 - \`worker/\` — traitements asynchrones
 
 Le wiki général est décrit dans [[Notes:idees/graphe-de-connaissances]].
+
+## Identité visuelle
+
+![Logo de Cobblestone](images/logo.png)
+
+L'image est un fichier du workspace : cliquez sur \`images/logo.png\` dans
+l'arborescence pour l'afficher seule.
 `,
 
   'deploiement.mdx': `---
@@ -169,3 +176,13 @@ Procédure en trois étapes.
 Voir [[architecture]] pour le découpage des modules.
 `,
 };
+
+/**
+ * Images du workspace « Projet Alpha ». Chargées à part : ce sont des octets,
+ * pas du texte, et Vite les sert comme des fichiers.
+ */
+export async function loadDemoAlphaImages(): Promise<Record<string, Uint8Array>> {
+  const { default: logoUrl } = await import('../../src-tauri/icons/128x128.png');
+  const response = await fetch(logoUrl);
+  return { 'images/logo.png': new Uint8Array(await response.arrayBuffer()) };
+}

@@ -1,5 +1,7 @@
 import {
   flattenFiles,
+  isDocumentFile,
+  isImageFile,
   normalizeRelativePath,
   type FileSystem,
 } from '../filesystem/FileSystem';
@@ -55,7 +57,8 @@ export class WorkspaceManager {
   async scan(workspaceId: string): Promise<ScanResult> {
     const fileSystem = this.fileSystem(workspaceId);
     const tree = await fileSystem.list();
-    const files = flattenFiles(tree);
+    // L'arbre contient aussi les images ; seuls les documents deviennent des notes.
+    const files = flattenFiles(tree).filter((file) => isDocumentFile(file.name));
 
     const notes: Note[] = [];
     const failures: ScanResult['failures'] = [];
@@ -81,6 +84,10 @@ export class WorkspaceManager {
 
   async readRaw(workspaceId: string, path: string): Promise<string> {
     return this.fileSystem(workspaceId).read(path);
+  }
+
+  async readBinary(workspaceId: string, path: string): Promise<Uint8Array> {
+    return this.fileSystem(workspaceId).readBinary(path);
   }
 
   async saveNote(workspaceId: string, path: string, raw: string): Promise<Note> {
@@ -144,8 +151,9 @@ export class WorkspaceManager {
   }
 }
 
+/** Ajoute `.mdx` à un nom de note sans extension. Une image garde la sienne. */
 function ensureExtension(path: string): string {
-  return /\.mdx?$/i.test(path) ? path : `${path}.mdx`;
+  return /\.mdx?$/i.test(path) || isImageFile(path) ? path : `${path}.mdx`;
 }
 
 /**
