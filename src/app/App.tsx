@@ -5,6 +5,7 @@ import { Editor } from './components/Editor';
 import { HistoryPanel } from './components/HistoryPanel';
 import { SearchBar } from './components/SearchBar';
 import { Sidebar } from './components/Sidebar';
+import { UpdateNotice } from './components/UpdateNotice';
 import { WorkspaceTabs } from './components/WorkspaceTabs';
 import { useActiveWorkspace, useIsDirty } from './hooks/useWorkspace';
 import { useDocStore, type EditorView } from './store/DocStore';
@@ -117,6 +118,8 @@ export function App() {
       </div>
 
       <BottomPanel />
+
+      <UpdateNotice />
 
       {status && (
         <div className={`toast toast--${status.tone}`} role="status">
