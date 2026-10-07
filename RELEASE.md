@@ -27,7 +27,8 @@ avec la bonne clé, même s'il vient de la bonne URL.
    Garder `~/.tauri/cobblestone.key` en lieu sûr : **si elle est perdue, les installations
    existantes ne pourront plus se mettre à jour**, il faudra les réinstaller à la main.
 
-2. Dans GitHub → *Settings* → *Secrets and variables* → *Actions* :
+2. Dans GitHub → *Settings* → *Secrets and variables* → *Actions*, onglets *Secrets* et
+   *Variables*, section **Repository** (pas *Environment* : le workflow n'en déclare aucun) :
 
    | Type | Nom | Valeur |
    |---|---|---|
