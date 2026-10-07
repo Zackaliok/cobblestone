@@ -16,8 +16,13 @@ avec la bonne clé, même s'il vient de la bonne URL.
 1. Générer la paire de clés, en local :
 
    ```sh
-   npm run tauri signer generate -- -w ~/.tauri/cobblestone.key
+   npx tauri signer generate -w ~/.tauri/cobblestone.key
    ```
+
+   Sous Windows (PowerShell), remplacer `~` par `$HOME` :
+   `npx tauri signer generate -w $HOME\.tauri\cobblestone.key`.
+   (Éviter `npm run tauri ... -- -w` : PowerShell mange le `--`, et npm prend alors
+   `-w` pour son option `--workspace`.)
 
    Garder `~/.tauri/cobblestone.key` en lieu sûr : **si elle est perdue, les installations
    existantes ne pourront plus se mettre à jour**, il faudra les réinstaller à la main.
