@@ -40,6 +40,23 @@ chmod +x cobblestone_x.y.z_amd64.AppImage
 Les deux versions partagent le même identifiant applicatif, donc les mêmes données dans
 `~/.local/share/local.entreprise.cobblestone` : ta liste de workspaces est commune aux deux.
 
+### Crash ou fenêtre qui se ferme sans message
+
+Les erreurs sont désormais écrites dans `~/.local/share/local.entreprise.cobblestone/logs/cobblestone.log`
+(joins ce fichier à ton rapport de bug). Lance aussi l'AppImage depuis un terminal pour voir stderr.
+
+Si le crash est natif (`malloc(): unaligned tcache chunk`, erreurs `EGL`/`Iris` — voir #18),
+il vient du rendu WebKitGTK/Mesa et non de l'application. Essaie de désactiver
+l'accélération graphique de la webview :
+
+```bash
+WEBKIT_DISABLE_DMABUF_RENDERER=1 ./cobblestone_x.y.z_amd64.AppImage
+# ou, si cela ne suffit pas :
+WEBKIT_DISABLE_COMPOSITING_MODE=1 ./cobblestone_x.y.z_amd64.AppImage
+```
+
+Dis-nous si l'une de ces variables supprime le crash.
+
 ## 3. L'application démarre vide — c'est normal
 
 Il n'y a aucun contenu au premier lancement. Pour commencer :

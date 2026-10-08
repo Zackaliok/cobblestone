@@ -1478,3 +1478,35 @@ button {
   font-family: var(--mono);
   font-size: 0.9em;
 }
+
+/* Erreur de rendu et brouillon de secours */
+.crash {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 24px;
+  max-width: 880px;
+  margin: 0 auto;
+  overflow: auto;
+}
+.crash--app {
+  min-height: 100vh;
+  justify-content: center;
+}
+.crash__detail {
+  max-height: 40vh;
+  overflow: auto;
+  padding: 12px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  opacity: 0.8;
+}
+.crash__actions {
+  display: flex;
+  gap: 8px;
+}
+.recovery {
+  bottom: 64px;
+}
