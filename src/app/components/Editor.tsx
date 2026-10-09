@@ -1,3 +1,4 @@
+import Checklist from '@editorjs/checklist';
 import EditorJS, { type OutputData } from '@editorjs/editorjs';
 import Delimiter from '@editorjs/delimiter';
 import Header from '@editorjs/header';
@@ -13,6 +14,8 @@ import {
   type EditorBlock,
 } from '../../core/parser/MDXEditorConverter';
 import { parseFrontmatter, serializeDocument } from '../../core/parser/MDXParser';
+import { resolveImagePath } from '../../core/filesystem/FileSystem';
+import { ImageTool, type ImageToolConfig } from '../editor/ImageTool';
 import { MdxBlockTool } from '../editor/MdxBlockTool';
 import { useDocStore } from '../store/DocStore';
 import { FrontmatterPanel } from './FrontmatterPanel';
@@ -57,6 +60,16 @@ function WysiwygEditor() {
     const container = document.createElement('div');
     holder.append(container);
 
+    // Les chemins d'image sont relatifs à la note : l'éditeur étant reconstruit
+    // à chaque changement de document, la note courante est figée ici.
+    const note = useDocStore.getState().open;
+    const imageConfig: ImageToolConfig = {
+      resolve: (src) => {
+        const path = note ? resolveImagePath(note.path, src) : null;
+        return note && path ? { workspaceId: note.workspaceId, path } : null;
+      },
+    };
+
     const editor = new EditorJS({
       holder: container,
       autofocus: false,
@@ -68,8 +81,10 @@ function WysiwygEditor() {
           config: { levels: [1, 2, 3, 4], defaultLevel: 2 },
         },
         list: { class: List as never, inlineToolbar: true },
+        checklist: { class: Checklist as never, inlineToolbar: true },
         quote: { class: Quote as never, inlineToolbar: true },
         delimiter: { class: Delimiter as never },
+        image: { class: ImageTool as never, config: imageConfig },
         marker: { class: Marker as never },
         inlineCode: { class: InlineCode as never },
         mdx: { class: MdxBlockTool as never },

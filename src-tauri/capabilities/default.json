@@ -6,12 +6,17 @@
   "permissions": [
     "core:default",
     "core:webview:allow-set-webview-zoom",
+    "log:default",
     "opener:allow-open-url",
 
     "dialog:allow-open",
     "store:default",
 
+    "updater:default",
+    "process:allow-restart",
+
     "fs:allow-read-text-file",
+    "fs:allow-read-file",
     "fs:allow-write-text-file",
     "fs:allow-read-dir",
     "fs:allow-mkdir",

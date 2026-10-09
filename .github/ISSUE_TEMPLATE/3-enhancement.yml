@@ -1,0 +1,36 @@
+name: 🎨 Amélioration
+description: Une fonctionnalité existante qui pourrait mieux marcher ou mieux s'afficher.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: current
+    attributes:
+      label: Aujourd'hui
+      description: Ce qui se passe actuellement. Une capture vaut souvent mieux qu'un long texte.
+      placeholder: Dans le WYSIWYG, le code inline s'affiche en rouge sur fond rose, alors que l'aperçu utilise les couleurs du thème.
+    validations:
+      required: true
+
+  - type: textarea
+    id: desired
+    attributes:
+      label: Ce qui serait mieux
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Partie de l'application concernée
+      multiple: true
+      options:
+        - Éditeur WYSIWYG
+        - Éditeur source
+        - Aperçu / rendu Markdown-MDX
+        - Graphe de connaissances
+        - Barre latérale / fichiers
+        - Recherche
+        - Workspaces
+        - Historique Git
+        - Installation / mise à jour
+        - Autre

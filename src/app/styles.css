@@ -798,6 +798,130 @@ button {
   margin: 1.6em 0;
 }
 
+/* Syntaxe Markdown étendue */
+.markdown del {
+  color: var(--text-dim);
+}
+
+.markdown mark {
+  background: rgba(224, 175, 104, 0.28);
+  color: inherit;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+.markdown sub,
+.markdown sup {
+  font-size: 0.75em;
+  line-height: 0;
+}
+
+.markdown .contains-task-list {
+  padding-left: 0.4em;
+  list-style: none;
+}
+
+.markdown .task-list-item .contains-task-list {
+  padding-left: 1.6em;
+}
+
+.markdown .task-checkbox {
+  margin: 0 8px 0 0;
+  vertical-align: -1px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.markdown dl {
+  margin: 0 0 1em;
+}
+
+.markdown dt {
+  font-weight: 600;
+}
+
+.markdown dd {
+  margin: 0.15em 0 0.6em 1.4em;
+  color: var(--text-dim);
+}
+
+.markdown [data-footnote-ref] {
+  text-decoration: none;
+}
+
+.markdown [data-footnotes] {
+  margin-top: 2.4em;
+  padding-top: 0.4em;
+  border-top: 1px solid var(--border);
+  font-size: 0.9em;
+  color: var(--text-dim);
+}
+
+.markdown [data-footnotes] h2 {
+  font-size: 1em;
+  margin: 0.6em 0;
+}
+
+/* Coloration syntaxique (rehype-highlight / highlight.js), accordée au thème */
+.markdown .hljs-comment,
+.markdown .hljs-quote {
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+.markdown .hljs-keyword,
+.markdown .hljs-selector-tag,
+.markdown .hljs-built_in,
+.markdown .hljs-doctag {
+  color: #bb9af7;
+}
+
+.markdown .hljs-string,
+.markdown .hljs-regexp,
+.markdown .hljs-addition,
+.markdown .hljs-attribute {
+  color: #9ece6a;
+}
+
+.markdown .hljs-number,
+.markdown .hljs-literal,
+.markdown .hljs-symbol,
+.markdown .hljs-bullet {
+  color: #ff9e64;
+}
+
+.markdown .hljs-title,
+.markdown .hljs-section,
+.markdown .hljs-function {
+  color: #7aa2f7;
+}
+
+.markdown .hljs-type,
+.markdown .hljs-class,
+.markdown .hljs-attr,
+.markdown .hljs-variable,
+.markdown .hljs-template-variable {
+  color: #7dcfff;
+}
+
+.markdown .hljs-tag,
+.markdown .hljs-name,
+.markdown .hljs-meta {
+  color: #f7768e;
+}
+
+.markdown .hljs-deletion {
+  color: var(--danger);
+}
+
+.markdown .hljs-emphasis {
+  font-style: italic;
+}
+
+.markdown .hljs-strong {
+  font-weight: 700;
+}
+
 .wiki-link {
   padding: 0;
   color: var(--accent);
@@ -1244,6 +1368,33 @@ button {
   line-height: 1;
 }
 
+/* Mise à jour disponible : en bas à gauche, pour ne pas couvrir les toasts */
+.update-notice {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 420px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--accent);
+  background: var(--bg-raised);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+.update-notice p {
+  margin: 0;
+}
+
+.update-notice__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 /* --- Editor.js : accord avec le thème sombre ----------------------------- */
 
 .codex-editor {
@@ -1340,7 +1491,23 @@ button {
   color: var(--text-faint);
 }
 
-.cdx-marker {
+/* Liste de tâches : le tool injecte un thème clair, qualifié ici pour l'emporter. */
+.codex-editor .cdx-checklist__item-checkbox-check {
+  border-color: var(--border-strong);
+  background: var(--bg-inset);
+}
+
+.codex-editor .cdx-checklist__item--checked .cdx-checklist__item-checkbox-check {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.codex-editor .cdx-checklist__item--checked .cdx-checklist__item-text {
+  color: var(--text-dim);
+}
+
+.cdx-marker,
+.codex-editor mark {
   background: rgba(224, 175, 104, 0.28);
   color: inherit;
 }
@@ -1353,4 +1520,36 @@ button {
   border-radius: 3px;
   font-family: var(--mono);
   font-size: 0.9em;
+}
+
+/* Erreur de rendu et brouillon de secours */
+.crash {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 24px;
+  max-width: 880px;
+  margin: 0 auto;
+  overflow: auto;
+}
+.crash--app {
+  min-height: 100vh;
+  justify-content: center;
+}
+.crash__detail {
+  max-height: 40vh;
+  overflow: auto;
+  padding: 12px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  opacity: 0.8;
+}
+.crash__actions {
+  display: flex;
+  gap: 8px;
+}
+.recovery {
+  bottom: 64px;
 }

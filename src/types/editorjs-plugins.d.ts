@@ -13,6 +13,11 @@ declare module '@editorjs/delimiter' {
   export default Delimiter;
 }
 
+declare module '@editorjs/checklist' {
+  const Checklist: unknown;
+  export default Checklist;
+}
+
 declare module '@editorjs/inline-code' {
   const InlineCode: unknown;
   export default InlineCode;
