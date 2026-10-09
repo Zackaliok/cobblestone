@@ -1027,6 +1027,38 @@ button {
   margin-bottom: 0;
 }
 
+/* Callout éditable dans le WYSIWYG */
+.callout-block {
+  margin: 6px 0;
+}
+
+.callout-block .callout__icon {
+  user-select: none;
+}
+
+.callout-block__body {
+  flex: 1;
+  min-width: 0;
+  outline: none;
+}
+
+.callout-block__body:empty::before {
+  content: attr(data-placeholder);
+  color: var(--text-faint);
+}
+
+.callout-tool-icon--warning {
+  color: var(--warning);
+}
+
+.callout-tool-icon--danger {
+  color: var(--danger);
+}
+
+.callout-tool-icon--success {
+  color: var(--success);
+}
+
 .accordion {
   margin: 0 0 1em;
   padding: 8px 12px;
