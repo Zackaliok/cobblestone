@@ -20,6 +20,7 @@ export type EditorBlock =
   | { type: 'list'; data: { style: 'ordered' | 'unordered'; items: string[] } }
   | { type: 'checklist'; data: { items: Array<{ text: string; checked: boolean }> } }
   | { type: 'quote'; data: { text: string; caption: string } }
+  | { type: 'image'; data: { src: string; alt: string } }
   | { type: 'delimiter'; data: Record<string, never> }
   | { type: 'toggle'; data: ToggleData }
   | { type: 'mdx'; data: { code: string } };
@@ -39,6 +40,12 @@ const ORDERED_ITEM = /^\d+[.)]\s+(.*)$/;
  * `1. [ ]`) restent des listes ordinaires, où la case est du simple texte.
  */
 const TASK_ITEM = /^- \[( |x)\] (.*)$/;
+/**
+ * Image seule sur sa ligne : `![texte alternatif](chemin)`. Avec un titre
+ * (`![a](b "titre")`) ou au milieu d'un paragraphe, elle reste du texte : le
+ * bloc image ne saurait pas la réécrire à l'identique.
+ */
+const IMAGE_LINE = /^!\[([^\]\n]*)\]\(([^()\s]+)\)$/;
 const THEMATIC_BREAK = /^(?:-{3,}|\*{3,}|_{3,})\s*$/;
 const FENCE_OPEN = /^(`{3,}|~{3,})(.*)$/;
 const JSX_OPEN = /^<([A-Za-z][\w.-]*)/;
@@ -69,6 +76,15 @@ export function mdxToBlocks(content: string): EditorBlock[] {
 
     if (THEMATIC_BREAK.test(line)) {
       blocks.push({ type: 'delimiter', data: {} });
+      index += 1;
+      continue;
+    }
+
+    // Suivie d'une ligne de texte, l'image fait partie d'un paragraphe Markdown :
+    // la séparer ajouterait une ligne vide au fichier.
+    const image = IMAGE_LINE.exec(line);
+    if (image && (lines[index + 1] ?? '').trim() === '') {
+      blocks.push({ type: 'image', data: { alt: image[1]!, src: image[2]! } });
       index += 1;
       continue;
     }
@@ -348,6 +364,12 @@ export function blocksToMdx(blocks: EditorBlock[]): string {
         chunks.push(caption ? `${body}\n>\n> — ${caption}` : body);
         break;
       }
+      case 'image':
+        // Un bloc image inséré mais laissé sans chemin ne produit rien.
+        if (block.data.src.trim()) {
+          chunks.push(`![${block.data.alt.replace(/[\]\n]/g, ' ')}](${block.data.src.trim()})`);
+        }
+        break;
       case 'delimiter':
         chunks.push('---');
         break;

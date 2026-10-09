@@ -12,8 +12,10 @@ import {
   remarkExtendedMarkdown,
   setTaskChecked,
 } from '../../core/parser/extendedMarkdown';
+import { resolveImagePath } from '../../core/filesystem/FileSystem';
 import { buildCodeMask, parseFrontmatter, slugifyHeading } from '../../core/parser/MDXParser';
 import { indexToggles, setToggleChecked } from '../../core/parser/toggles';
+import { useWorkspaceImage } from '../images';
 import { useDocStore } from '../store/DocStore';
 import { EmptyState } from './Editor';
 
@@ -205,6 +207,14 @@ function useMDXComponentMap(): MDXComponents {
         </a>
       ),
 
+      // Les images du workspace sont lues depuis le disque ; les autres sources
+      // (URL, data:) passent telles quelles.
+      img: ({ src, alt, ...props }: ComponentProps<'img'>) => {
+        const path = open && typeof src === 'string' ? resolveImagePath(open.path, src) : null;
+        if (!open || !path) return <img {...props} src={src} alt={alt} />;
+        return <WorkspaceImage workspaceId={open.workspaceId} path={path} alt={alt} />;
+      },
+
       // Cases des listes de tâches, numérotées par `rehypeTaskListIndex`.
       input: (props: ComponentProps<'input'> & { 'data-task-index'?: string }) => {
         const index = Number(props['data-task-index']);
@@ -223,6 +233,24 @@ function useMDXComponentMap(): MDXComponents {
       h4: (props: HeadingProps) => headingWithAnchor('h4', props),
     }),
     [open, followLink],
+  );
+}
+
+function WorkspaceImage({
+  workspaceId,
+  path,
+  alt,
+}: {
+  workspaceId: string;
+  path: string;
+  alt?: string;
+}) {
+  const image = useWorkspaceImage(workspaceId, path);
+  if (image.status === 'ready') return <img src={image.image.url} alt={alt} />;
+  return (
+    <span className="preview__image-missing" title={path}>
+      {image.status === 'loading' ? 'Chargement de l’image…' : `Image introuvable : ${path}`}
+    </span>
   );
 }
 

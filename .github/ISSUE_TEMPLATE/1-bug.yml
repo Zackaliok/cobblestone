@@ -1,0 +1,105 @@
+name: 🐞 Bug
+description: Quelque chose ne marche pas comme prévu.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Merci de prendre le temps de signaler un problème. Plus le pas-à-pas est précis, plus la correction est rapide.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Que se passe-t-il ?
+      description: Décrivez le problème en une ou deux phrases.
+      placeholder: Le statut d'une case cochée dans l'aperçu n'est pas enregistré dans le fichier.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Étapes pour reproduire
+      placeholder: |
+        1. Ouvrir une note contenant `<Toggle label="Test" />`
+        2. Passer en Aperçu et cocher la case
+        3. Ctrl+S, puis rouvrir le fichier
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Comportement attendu
+    validations:
+      required: true
+
+  - type: dropdown
+    id: data-loss
+    attributes:
+      label: Y a-t-il perte ou altération de contenu ?
+      description: Un fichier modifié sans action de votre part, ou des modifications perdues, rend le bug prioritaire.
+      options:
+        - Non
+        - Oui — des modifications ont été perdues
+        - Oui — le fichier a été modifié ou abîmé sans que je le demande
+    validations:
+      required: true
+
+  - type: dropdown
+    id: view
+    attributes:
+      label: Où ?
+      multiple: true
+      options:
+        - WYSIWYG
+        - Source
+        - Aperçu
+        - Graph
+        - Historique
+        - Barre latérale / arborescence
+        - Recherche
+        - Workspaces (ouverture, onglets)
+        - Installation / mise à jour
+        - Autre
+
+  - type: dropdown
+    id: build
+    attributes:
+      label: Version utilisée
+      options:
+        - Windows — installeur (setup.exe)
+        - Windows — portable
+        - Linux — AppImage
+        - Linux — .deb
+        - macOS
+        - Développement (npm run tauri dev / npm run dev)
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Numéro de version ou commit
+      description: Visible dans le nom de l'installeur ou dans le récapitulatif du build GitHub Actions.
+      placeholder: 0.1.0 / 733ad86
+
+  - type: input
+    id: os
+    attributes:
+      label: Système d'exploitation
+      placeholder: Windows 11, Ubuntu 24.04…
+
+  - type: textarea
+    id: sample
+    attributes:
+      label: Extrait du fichier concerné
+      description: Le plus petit morceau de `.mdx` / `.md` qui provoque le problème. Retirez toute information confidentielle.
+      render: markdown
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Captures d'écran, erreurs de la console
+      description: |
+        Glissez des captures ici. Pour la console : **F12** (ou `Ctrl+Shift+I`) dans l'application → onglet Console → copier les lignes en rouge.

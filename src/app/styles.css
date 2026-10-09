@@ -1361,6 +1361,33 @@ button {
   line-height: 1;
 }
 
+/* Mise à jour disponible : en bas à gauche, pour ne pas couvrir les toasts */
+.update-notice {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 420px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--accent);
+  background: var(--bg-raised);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+.update-notice p {
+  margin: 0;
+}
+
+.update-notice__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 /* --- Editor.js : accord avec le thème sombre ----------------------------- */
 
 .codex-editor {
@@ -1486,4 +1513,36 @@ button {
   border-radius: 3px;
   font-family: var(--mono);
   font-size: 0.9em;
+}
+
+/* Erreur de rendu et brouillon de secours */
+.crash {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 24px;
+  max-width: 880px;
+  margin: 0 auto;
+  overflow: auto;
+}
+.crash--app {
+  min-height: 100vh;
+  justify-content: center;
+}
+.crash__detail {
+  max-height: 40vh;
+  overflow: auto;
+  padding: 12px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  opacity: 0.8;
+}
+.crash__actions {
+  display: flex;
+  gap: 8px;
+}
+.recovery {
+  bottom: 64px;
 }
