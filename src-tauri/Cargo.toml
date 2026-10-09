@@ -34,6 +34,9 @@ tauri-plugin-window-state = "2"
 # Requis par `generate_context!` dès que tauri.conf.json contient une section
 # `plugins` (ici, la configuration du updater).
 serde_json = "1"
+# Fait le lien entre le hook de panic et le plugin de journalisation.
+log = "0.4"
+tauri-plugin-log = "2"
 
 [profile.release]
 codegen-units = 1

@@ -2,7 +2,9 @@ import { lazy, Suspense, useEffect } from 'react';
 
 import { BottomPanel } from './components/BottomPanel';
 import { Editor } from './components/Editor';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { HistoryPanel } from './components/HistoryPanel';
+import { RecoveryNotice } from './components/RecoveryNotice';
 import { SearchBar } from './components/SearchBar';
 import { Sidebar } from './components/Sidebar';
 import { UpdateNotice } from './components/UpdateNotice';
@@ -106,6 +108,7 @@ export function App() {
           </div>
 
           <div className="app__view">
+            <ErrorBoundary scope="view" resetKey={`${view}:${open?.workspaceId}:${open?.path}`}>
             <Suspense fallback={<div className="boot">Chargement de la vue…</div>}>
               {view === 'wysiwyg' && <Editor mode="wysiwyg" />}
               {view === 'source' && <Editor mode="source" />}
@@ -113,6 +116,7 @@ export function App() {
               {view === 'graph' && <GraphView />}
               {view === 'history' && <HistoryPanel />}
             </Suspense>
+            </ErrorBoundary>
           </div>
         </main>
       </div>
@@ -120,6 +124,7 @@ export function App() {
       <BottomPanel />
 
       <UpdateNotice />
+      <RecoveryNotice />
 
       {status && (
         <div className={`toast toast--${status.tone}`} role="status">

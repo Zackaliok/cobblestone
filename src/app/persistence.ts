@@ -71,3 +71,48 @@ export async function saveSession(session: PersistedSession): Promise<void> {
     // Perdre la persistance est gênant, pas fatal — on ne bloque pas l'édition.
   }
 }
+
+/**
+ * Brouillon de secours : copie du texte en cours d'édition, écrite à part de la
+ * session. Le fichier du workspace n'est jamais touché — l'utilisateur décide
+ * au prochain lancement de restaurer ou non.
+ */
+export interface RecoveredDraft {
+  workspaceId: string;
+  path: string;
+  draft: string;
+  savedAt: number;
+}
+
+const RECOVERY_KEY = 'recovery';
+const BROWSER_RECOVERY_KEY = 'cobblestone:recovery';
+
+export async function loadRecovery(): Promise<RecoveredDraft | null> {
+  try {
+    if (isDesktop()) {
+      const store = await desktopStore();
+      return (await store.get<RecoveredDraft>(RECOVERY_KEY)) ?? null;
+    }
+
+    const raw = window.localStorage.getItem(BROWSER_RECOVERY_KEY);
+    return raw ? (JSON.parse(raw) as RecoveredDraft) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveRecovery(recovery: RecoveredDraft | null): Promise<void> {
+  try {
+    if (isDesktop()) {
+      const store = await desktopStore();
+      await store.set(RECOVERY_KEY, recovery);
+      await store.save();
+      return;
+    }
+
+    if (recovery) window.localStorage.setItem(BROWSER_RECOVERY_KEY, JSON.stringify(recovery));
+    else window.localStorage.removeItem(BROWSER_RECOVERY_KEY);
+  } catch {
+    // Le brouillon de secours est un filet : son échec ne doit rien casser.
+  }
+}

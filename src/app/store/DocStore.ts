@@ -20,7 +20,13 @@ import type {
 } from '../../core/workspace/types';
 import { noteId } from '../../core/workspace/types';
 import { DEMO_ALPHA_NOTES, DEMO_NOTES } from '../demo';
-import { loadSession, saveSession } from '../persistence';
+import {
+  loadRecovery,
+  loadSession,
+  saveRecovery,
+  saveSession,
+  type RecoveredDraft,
+} from '../persistence';
 import { isDesktop } from '../platform';
 
 export type EditorView = 'wysiwyg' | 'source' | 'preview' | 'graph' | 'history';
@@ -65,6 +71,8 @@ interface DocState {
   searchScope: Scope;
   searchQuery: string;
   status: StatusMessage | null;
+  /** Brouillon retrouvé après une fermeture inattendue, en attente de décision. */
+  recovery: RecoveredDraft | null;
 
   initialize(): Promise<void>;
   addLocalWorkspace(): Promise<void>;
@@ -74,6 +82,8 @@ interface DocState {
 
   openNote(workspaceId: string, path: string): Promise<void>;
   followLink(link: WikiLink, fromWorkspaceId: string): Promise<void>;
+  restoreRecovery(): Promise<void>;
+  dismissRecovery(): void;
   setDraft(draft: string): void;
   save(): Promise<void>;
   createNote(workspaceId: string, path: string): Promise<void>;
@@ -90,6 +100,9 @@ interface DocState {
 const manager = new WorkspaceManager();
 /** Arrêt des surveillances de fichiers, par workspace. */
 const watchers = new Map<string, () => void>();
+/** Scan en cours par workspace, et workspaces à rescanner une fois celui-ci terminé. */
+const refreshRuns = new Map<string, Promise<void>>();
+const refreshPending = new Set<string>();
 
 export const useDocStore = create<DocState>()((set, get) => ({
   ready: false,
@@ -112,6 +125,7 @@ export const useDocStore = create<DocState>()((set, get) => ({
   searchScope: 'workspace',
   searchQuery: '',
   status: null,
+  recovery: null,
 
   async initialize() {
     if (!isDesktop()) {
@@ -138,6 +152,11 @@ export const useDocStore = create<DocState>()((set, get) => ({
           : (workspaces[0]?.id ?? null),
       ready: true,
     });
+
+    // Ne proposer la restauration que si le workspace existe encore.
+    const recovery = await loadRecovery();
+    if (recovery && workspaces.some((w) => w.id === recovery.workspaceId)) set({ recovery });
+    else if (recovery) await saveRecovery(null);
 
     for (const workspace of workspaces) {
       if (workspace.status === 'ready') await get().refreshWorkspace(workspace.id);
@@ -188,6 +207,7 @@ export const useDocStore = create<DocState>()((set, get) => ({
   },
 
   async removeWorkspace(workspaceId) {
+    refreshPending.delete(workspaceId);
     watchers.get(workspaceId)?.();
     watchers.delete(workspaceId);
     manager.detach(workspaceId);
@@ -219,29 +239,29 @@ export const useDocStore = create<DocState>()((set, get) => ({
     void persist(get);
   },
 
-  async refreshWorkspace(workspaceId) {
-    if (!manager.has(workspaceId)) return;
-
-    try {
-      const result = await manager.scan(workspaceId);
-
-      set((state) => ({
-        trees: { ...state.trees, [workspaceId]: result.tree },
-        notesByWorkspace: { ...state.notesByWorkspace, [workspaceId]: result.notes },
-        issues: {
-          ...state.issues,
-          [workspaceId]: { truncated: result.truncated, failures: result.failures },
-        },
-        workspaces: state.workspaces.map((workspace) =>
-          workspace.id === workspaceId ? { ...workspace, status: 'ready' as const } : workspace,
-        ),
-      }));
-
-      reindex(set, get);
-      await startWatching(workspaceId, get);
-    } catch (error) {
-      markUnavailable(set, workspaceId, describeError(error));
+  refreshWorkspace(workspaceId) {
+    // Un seul scan à la fois par workspace. Le watcher peut émettre en rafale
+    // (git, build, IDE) : lancer un scan complet par évènement empilerait des
+    // parcours concurrents du disque. Les demandes arrivées pendant un scan se
+    // fondent en un unique nouveau passage.
+    const running = refreshRuns.get(workspaceId);
+    if (running) {
+      refreshPending.add(workspaceId);
+      return running;
     }
+
+    const run = (async () => {
+      try {
+        do {
+          refreshPending.delete(workspaceId);
+          await scanWorkspace(set, get, workspaceId);
+        } while (refreshPending.has(workspaceId));
+      } finally {
+        refreshRuns.delete(workspaceId);
+      }
+    })();
+    refreshRuns.set(workspaceId, run);
+    return run;
   },
 
   async openNote(workspaceId, path) {
@@ -294,6 +314,23 @@ export const useDocStore = create<DocState>()((set, get) => ({
 
     const target = allNotes.find((note) => note.id === resolved.targetId);
     if (target) await get().openNote(target.workspaceId, target.path);
+  },
+
+  async restoreRecovery() {
+    const { recovery } = get();
+    if (!recovery) return;
+
+    await get().openNote(recovery.workspaceId, recovery.path);
+    // `persisted` reste le contenu du disque : le document apparaît modifié
+    // et rien n'est écrit tant que l'utilisateur n'enregistre pas.
+    if (get().open?.path === recovery.path) {
+      set({ draft: recovery.draft, recovery: null });
+    }
+  },
+
+  dismissRecovery() {
+    set({ recovery: null });
+    void saveRecovery(null);
   },
 
   setDraft(draft) {
@@ -407,6 +444,32 @@ type GetState = () => DocState;
  * `unavailable`. Le dossier peut être sur un disque externe débranché — le
  * retirer silencieusement ferait disparaître le travail de l'utilisateur.
  */
+/** Scan complet d'un workspace ; voir `refreshWorkspace` pour la sérialisation. */
+async function scanWorkspace(set: SetState, get: GetState, workspaceId: string): Promise<void> {
+    if (!manager.has(workspaceId)) return;
+
+    try {
+      const result = await manager.scan(workspaceId);
+
+      set((state) => ({
+        trees: { ...state.trees, [workspaceId]: result.tree },
+        notesByWorkspace: { ...state.notesByWorkspace, [workspaceId]: result.notes },
+        issues: {
+          ...state.issues,
+          [workspaceId]: { truncated: result.truncated, failures: result.failures },
+        },
+        workspaces: state.workspaces.map((workspace) =>
+          workspace.id === workspaceId ? { ...workspace, status: 'ready' as const } : workspace,
+        ),
+      }));
+
+      reindex(set, get);
+      await startWatching(workspaceId, get);
+    } catch (error) {
+      markUnavailable(set, workspaceId, describeError(error));
+    }
+  }
+
 async function attachLocalWorkspace(descriptor: WorkspaceDescriptor): Promise<Workspace> {
   try {
     const { TauriFileSystem } = await import('../../core/filesystem/TauriFileSystem');
