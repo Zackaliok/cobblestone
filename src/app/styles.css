@@ -827,6 +827,40 @@ button {
   margin: 1.6em 0;
 }
 
+/* Diagrammes Mermaid */
+.mermaid-diagram {
+  margin: 0 0 1em;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-inset);
+  overflow-x: auto;
+}
+
+.mermaid-diagram__svg {
+  display: flex;
+  justify-content: center;
+}
+
+.mermaid-diagram__svg svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.mermaid-diagram__loading {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.mermaid-diagram__error {
+  margin-top: 8px;
+  color: #ffc4ce;
+  font-family: var(--mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
 /* Syntaxe Markdown étendue */
 .markdown del {
   color: var(--text-dim);
