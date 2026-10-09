@@ -17,6 +17,7 @@ import { parseFrontmatter, serializeDocument } from '../../core/parser/MDXParser
 import { resolveImagePath } from '../../core/filesystem/FileSystem';
 import { ImageTool, type ImageToolConfig } from '../editor/ImageTool';
 import { MdxBlockTool } from '../editor/MdxBlockTool';
+import { EmojiAutocomplete } from './EmojiAutocomplete';
 import { useDocStore } from '../store/DocStore';
 import { FrontmatterPanel } from './FrontmatterPanel';
 import { SourceEditor } from './SourceEditor';
@@ -143,6 +144,7 @@ function WysiwygEditor() {
       <FrontmatterPanel />
       {failure && <p className="editor__error">Synchronisation impossible : {failure}</p>}
       <div className="editor__surface" ref={holderRef} />
+      <EmojiAutocomplete surfaceRef={holderRef} />
     </div>
   );
 }

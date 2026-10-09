@@ -1,4 +1,5 @@
 import { evaluate, type EvaluateOptions } from '@mdx-js/mdx';
+import { gemoji } from 'gemoji';
 import type { MDXComponents } from 'mdx/types';
 import { useEffect, useMemo, useState, type ComponentProps, type ReactNode } from 'react';
 import * as runtime from 'react/jsx-runtime';
@@ -6,6 +7,7 @@ import rehypeHighlight from 'rehype-highlight';
 import { defListHastHandlers, remarkDefinitionList } from 'remark-definition-list';
 import remarkGfm from 'remark-gfm';
 
+import { buildShortcodeIndex, remarkEmojiShortcodes } from '../../core/emoji/emoji';
 import {
   escapeHeadingIds,
   rehypeTaskListIndex,
@@ -20,13 +22,21 @@ import { EmptyState } from './Editor';
 
 const COMPILE_DELAY_MS = 300;
 
+/** `:rocket:` -> 🚀, avec les noms courts de GitHub. */
+const remarkEmoji = remarkEmojiShortcodes(buildShortcodeIndex(gemoji));
+
 /**
  * Syntaxe Markdown étendue (voir `core/parser/extendedMarkdown.ts`).
  * `singleTilde: false` : un tilde simple sert à l'indice (`H~2~O`), seul le
  * double tilde barre le texte.
  */
 const COMPILE_OPTIONS = {
-  remarkPlugins: [[remarkGfm, { singleTilde: false }], remarkDefinitionList, remarkExtendedMarkdown],
+  remarkPlugins: [
+    [remarkGfm, { singleTilde: false }],
+    remarkDefinitionList,
+    remarkExtendedMarkdown,
+    remarkEmoji,
+  ],
   rehypePlugins: [[rehypeHighlight, { detect: false }], rehypeTaskListIndex],
   remarkRehypeOptions: {
     handlers: defListHastHandlers,
