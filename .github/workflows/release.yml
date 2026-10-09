@@ -1,0 +1,119 @@
+name: Release
+
+# Publie une version installable ET auto-actualisable : installeur Windows et
+# AppImage Linux signés, plus le manifeste `latest.json` que l'application
+# interroge au démarrage (voir `plugins.updater` dans tauri.conf.json).
+#
+# Déclenchement manuel : on publie quand on le décide, pas à chaque push.
+# Avant de lancer, augmenter `version` dans package.json — c'est la seule
+# source de vérité (tauri.conf.json la lit), et la release est étiquetée
+# `v<version>`. Relancer sur une version déjà publiée ne fait que réécrire
+# ses fichiers : les postes déjà à jour ne verraient rien.
+#
+# Prérequis, une seule fois (voir RELEASE.md) :
+#   - secret   TAURI_SIGNING_PRIVATE_KEY          clé privée de signature
+#   - secret   TAURI_SIGNING_PRIVATE_KEY_PASSWORD son mot de passe (peut être vide)
+#   - variable TAURI_UPDATER_PUBKEY               clé publique correspondante
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Release ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows
+            platform: windows-latest
+            config: '{}'
+          # Seule l'AppImage sait se mettre à jour toute seule : le .deb reste
+          # disponible via le workflow « Build Linux » pour qui préfère apt.
+          - name: Linux
+            platform: ubuntu-22.04
+            config: '{"bundle":{"targets":["appimage"]}}'
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Vérifier la configuration de signature
+        shell: bash
+        env:
+          PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          PUBLIC_KEY: ${{ vars.TAURI_UPDATER_PUBKEY }}
+        run: |
+          if [ -z "$PRIVATE_KEY" ] || [ -z "$PUBLIC_KEY" ]; then
+            echo "::error::Secret TAURI_SIGNING_PRIVATE_KEY ou variable TAURI_UPDATER_PUBKEY manquant : voir RELEASE.md"
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Installer les dépendances système Tauri
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libxdo-dev \
+            patchelf \
+            file
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Tests unitaires
+        run: npm test
+
+      # La clé publique n'est pas commitée : elle est injectée ici, avec
+      # l'activation des artefacts de mise à jour. Les builds de test (workflows
+      # « Build Windows » / « Build Linux ») restent ainsi sans signature et
+      # sans vérification de mise à jour.
+      - name: Configuration de release
+        shell: bash
+        env:
+          PUBLIC_KEY: ${{ vars.TAURI_UPDATER_PUBKEY }}
+          PLATFORM_CONFIG: ${{ matrix.config }}
+        run: |
+          node -e '
+            const config = JSON.parse(process.env.PLATFORM_CONFIG);
+            config.bundle = { ...config.bundle, createUpdaterArtifacts: true };
+            config.plugins = { updater: { pubkey: process.env.PUBLIC_KEY } };
+            require("fs").writeFileSync("tauri.release.conf.json", JSON.stringify(config, null, 2));
+          '
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Lu par Vite au build : active la vérification des mises à jour.
+          VITE_UPDATER_ENABLED: 'true'
+        with:
+          tagName: v__VERSION__
+          releaseName: Cobblestone v__VERSION__
+          releaseBody: |
+            Les installations existantes proposeront cette version au prochain lancement.
+
+            - **Windows** : `Cobblestone_*_x64-setup.exe`
+            - **Linux** : `Cobblestone_*_amd64.AppImage`
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
+          args: --config tauri.release.conf.json

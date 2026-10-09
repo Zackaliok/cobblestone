@@ -24,10 +24,12 @@ développé pour l'instant.
 | Aperçu MDX avec `Callout`, `Accordion`, `Toggle` et liens cliquables | ✅ |
 | Syntaxe Markdown étendue : tableaux, tâches, notes, définitions, ==surligné==, H~2~O, x^2^, `{#ancre}`, code coloré | ✅ |
 | Émojis : menu au `:` dans les deux éditeurs (récents + recherche), `:rocket:` rendu dans l'aperçu | ✅ |
+| Images `.png` / `.jpg` / `.jpeg` : arborescence, visionneuse, WYSIWYG et aperçu | ✅ |
 | Graphe de connaissances (workspace / global), liens cassés, orphelines | ✅ |
 | Recherche full-text insensible aux accents | ✅ |
 | Historique Git local, en lecture seule | ✅ |
 | Rafraîchissement automatique quand les fichiers changent sur le disque | ✅ |
+| Mise à jour automatique depuis les releases GitHub (voir `RELEASE.md`) | ✅ |
 | Mode serveur (wiki, LDAP, auto-commit) | ⛔ non développé |
 
 ---

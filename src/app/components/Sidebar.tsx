@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { dirname } from '../../core/filesystem/FileSystem';
+import { dirname, isImageFile } from '../../core/filesystem/FileSystem';
 import type { FileEntry } from '../../core/workspace/types';
 import { useSearch } from '../hooks/useSearch';
 import { useActiveTree, useActiveWorkspace } from '../hooks/useWorkspace';
@@ -109,7 +109,7 @@ function highlight(text: string, ranges: Array<{ start: number; end: number }>) 
 
 function FileTree({ entries, workspaceId }: { entries: FileEntry[]; workspaceId: string }) {
   if (entries.length === 0) {
-    return <p className="sidebar__empty">Aucun fichier .mdx ou .md dans ce dossier.</p>;
+    return <p className="sidebar__empty">Aucun fichier .mdx, .md ou image dans ce dossier.</p>;
   }
   return (
     <ul className="tree">
@@ -131,7 +131,9 @@ function TreeNode({
 }) {
   const [expanded, setExpanded] = useState(depth < 1);
   const open = useDocStore((state) => state.open);
+  const openImage = useDocStore((state) => state.openImage);
   const openNote = useDocStore((state) => state.openNote);
+  const openImageFile = useDocStore((state) => state.openImageFile);
 
   if (entry.isDirectory) {
     return (
@@ -164,17 +166,39 @@ function TreeNode({
     );
   }
 
-  const isOpen = open?.workspaceId === workspaceId && open.path === entry.path;
+  const image = isImageFile(entry.name);
+  // Une image affichée masque le document ouvert : c'est elle qu'on surligne.
+  const shown = openImage ?? open;
+  const isOpen = shown?.workspaceId === workspaceId && shown.path === entry.path;
 
   return (
-    <li className="tree__file">
+    <li className={image ? 'tree__file tree__file--image' : 'tree__file'}>
       <div className={isOpen ? 'tree__row is-open' : 'tree__row'}>
         <button
           type="button"
           className="tree__name"
           style={{ paddingLeft: `${depth * 12 + 20}px` }}
-          onClick={() => void openNote(workspaceId, entry.path)}
+          onClick={() =>
+            image ? openImageFile(workspaceId, entry.path) : void openNote(workspaceId, entry.path)
+          }
         >
+          {image && (
+            <svg
+              className="tree__icon"
+              width="12"
+              height="12"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinejoin="round"
+              aria-label="Image"
+            >
+              <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
+              <circle cx="5.5" cy="6.5" r="1.3" />
+              <path d="m2 12.5 4-4 3 3 2-2 3.5 3.5" />
+            </svg>
+          )}
           {entry.name}
         </button>
         <FileActions workspaceId={workspaceId} path={entry.path} name={entry.name} />
