@@ -12,6 +12,8 @@ import { UpdateNotice } from './components/UpdateNotice';
 import { WorkspaceTabs } from './components/WorkspaceTabs';
 import { useActiveWorkspace, useIsDirty } from './hooks/useWorkspace';
 import { useDocStore, type EditorView } from './store/DocStore';
+import { restoreZoom, useZoomStore } from './store/ZoomStore';
+import { zoomShortcut } from './zoom';
 
 // Ces deux vues portent les grosses dépendances — le compilateur MDX pour
 // l'aperçu, d3-force pour le graphe. Les charger à la demande évite de payer
@@ -51,6 +53,24 @@ export function App() {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [save]);
+
+  // Zoom façon navigateur. En phase de capture : les blocs MDX de l'éditeur
+  // arrêtent la propagation des touches, le raccourci doit passer quand même.
+  useEffect(() => {
+    restoreZoom();
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      const action = zoomShortcut(event);
+      if (!action) return;
+      event.preventDefault();
+      const zoom = useZoomStore.getState();
+      if (action === 'in') zoom.zoomIn();
+      else if (action === 'out') zoom.zoomOut();
+      else zoom.reset();
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, []);
 
   // Le message de statut s'efface tout seul, sauf s'il s'agit d'une erreur.
   useEffect(() => {
