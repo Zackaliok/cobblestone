@@ -1,11 +1,22 @@
 import { evaluate, type EvaluateOptions } from '@mdx-js/mdx';
+import { gemoji } from 'gemoji';
 import type { MDXComponents } from 'mdx/types';
-import { useEffect, useMemo, useState, type ComponentProps, type ReactNode } from 'react';
+import {
+  isValidElement,
+  lazy,
+  Suspense,
+  useEffect,
+  useMemo,
+  useState,
+  type ComponentProps,
+  type ReactNode,
+} from 'react';
 import * as runtime from 'react/jsx-runtime';
 import rehypeHighlight from 'rehype-highlight';
 import { defListHastHandlers, remarkDefinitionList } from 'remark-definition-list';
 import remarkGfm from 'remark-gfm';
 
+import { buildShortcodeIndex, remarkEmojiShortcodes } from '../../core/emoji/emoji';
 import {
   escapeHeadingIds,
   rehypeTaskListIndex,
@@ -20,14 +31,28 @@ import { EmptyState } from './Editor';
 
 const COMPILE_DELAY_MS = 300;
 
+const MermaidDiagram = lazy(() =>
+  import('./MermaidDiagram').then((module) => ({ default: module.MermaidDiagram })),
+);
+
+/** `:rocket:` -> 🚀, avec les noms courts de GitHub. */
+const remarkEmoji = remarkEmojiShortcodes(buildShortcodeIndex(gemoji));
+
 /**
  * Syntaxe Markdown étendue (voir `core/parser/extendedMarkdown.ts`).
  * `singleTilde: false` : un tilde simple sert à l'indice (`H~2~O`), seul le
  * double tilde barre le texte.
  */
 const COMPILE_OPTIONS = {
-  remarkPlugins: [[remarkGfm, { singleTilde: false }], remarkDefinitionList, remarkExtendedMarkdown],
-  rehypePlugins: [[rehypeHighlight, { detect: false }], rehypeTaskListIndex],
+  remarkPlugins: [
+    [remarkGfm, { singleTilde: false }],
+    remarkDefinitionList,
+    remarkExtendedMarkdown,
+    remarkEmoji,
+  ],
+  // `mermaid` n'est pas un langage à colorer : son source doit rester du texte
+  // brut pour être rendu en diagramme.
+  rehypePlugins: [[rehypeHighlight, { detect: false, plainText: ['mermaid'] }], rehypeTaskListIndex],
   remarkRehypeOptions: {
     handlers: defListHastHandlers,
     footnoteLabel: 'Notes',
@@ -207,6 +232,17 @@ function useMDXComponentMap(): MDXComponents {
         );
       },
 
+      // Un bloc ```mermaid devient un diagramme ; les autres restent du code.
+      pre: ({ children, ...props }: ComponentProps<'pre'>) => {
+        const diagram = mermaidSource(children);
+        if (diagram === null) return <pre {...props}>{children}</pre>;
+        return (
+          <Suspense fallback={<p className="mermaid-diagram__loading">Rendu du diagramme…</p>}>
+            <MermaidDiagram code={diagram} />
+          </Suspense>
+        );
+      },
+
       h1: (props: HeadingProps) => headingWithAnchor('h1', props),
       h2: (props: HeadingProps) => headingWithAnchor('h2', props),
       h3: (props: HeadingProps) => headingWithAnchor('h3', props),
@@ -273,6 +309,17 @@ function rewriteBody(transform: (body: string) => string): void {
   // reformater le YAML alors qu'on ne touche qu'à une case.
   const prefix = draft.slice(0, draft.length - content.length);
   setDraft(prefix + transform(content));
+}
+
+/** Source d'un bloc ```` ```mermaid ```` (`<pre><code class="language-mermaid">`), sinon `null`. */
+function mermaidSource(children: ReactNode): string | null {
+  if (!isValidElement<{ className?: string; children?: ReactNode }>(children)) return null;
+
+  const { className, children: code } = children.props;
+  if (!className?.split(' ').includes('language-mermaid')) return null;
+
+  const text = Array.isArray(code) ? code.join('') : code;
+  return typeof text === 'string' ? text : null;
 }
 
 type HeadingProps = { id?: string; children?: ReactNode };

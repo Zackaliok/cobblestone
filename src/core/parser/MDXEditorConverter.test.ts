@@ -31,7 +31,29 @@ describe('mdxToBlocks', () => {
   });
 
   it('garde le JSX intact', () => {
-    const source = '<Callout type="info">\n  Bonjour\n</Callout>';
+    const source = '<Accordion title="Détails">\n  Bonjour\n</Accordion>';
+    expect(mdxToBlocks(source)).toEqual([{ type: 'mdx', data: { code: source } }]);
+  });
+
+  it.each(['info', 'warning', 'danger', 'success'])(
+    'reconnaît un Callout %s comme bloc éditable',
+    (type) => {
+      expect(mdxToBlocks(`<Callout type="${type}">\n  Un **texte**\n</Callout>`)).toEqual([
+        { type: 'callout', data: { type, text: 'Un <b>texte</b>' } },
+      ]);
+    },
+  );
+
+  it.each([
+    ['type inconnu', '<Callout type="tip">\n  Bonjour\n</Callout>'],
+    ['sans type', '<Callout>\n  Bonjour\n</Callout>'],
+    ['attribut supplémentaire', '<Callout type="info" title="x">\n  Bonjour\n</Callout>'],
+    ['sur une seule ligne', '<Callout type="info">Bonjour</Callout>'],
+    ['ligne vide dans le corps', '<Callout type="info">\n  Un\n\n  Deux\n</Callout>'],
+    ['liste dans le corps', '<Callout type="info">\n  - un\n  - deux\n</Callout>'],
+    ['JSX imbriqué', '<Callout type="info">\n  <Badge />\n</Callout>'],
+    ['indentation différente', '<Callout type="info">\n    Bonjour\n</Callout>'],
+  ])('garde un Callout en MDX brut : %s', (_label, source) => {
     expect(mdxToBlocks(source)).toEqual([{ type: 'mdx', data: { code: source } }]);
   });
 
@@ -62,7 +84,14 @@ describe('aller-retour', () => {
     ['liste ordonnée', '1. un\n2. deux'],
     ['citation', '> une citation'],
     ['code avec langage', '```ts\nconst a = 1;\n```'],
-    ['JSX', '<Callout type="warning">\n  Attention\n</Callout>'],
+    ['JSX', '<Accordion title="Détails">\n  Contenu\n</Accordion>'],
+    ['Callout info', '<Callout type="info">\n  Note\n</Callout>'],
+    ['Callout warning', '<Callout type="warning">\n  Attention\n</Callout>'],
+    ['Callout danger', '<Callout type="danger">\n  Interdit\n</Callout>'],
+    ['Callout success', '<Callout type="success">\n  Réussi\n</Callout>'],
+    ['Callout multiligne et inline', '<Callout type="info">\n  Voir [[page]]\n  et `code` en **gras**\n</Callout>'],
+    ['Callout vide', '<Callout type="info">\n  \n</Callout>'],
+    ['Callout complexe (brut)', '<Callout type="info">\n  - a\n  - b\n</Callout>'],
     ['tableau', '| a | b |\n|---|---|\n| 1 | 2 |'],
     ['gras et italique', 'Du **gras** et de l’*italique*.'],
     ['code inline', 'Voir `npm run tauri dev` pour lancer.'],
