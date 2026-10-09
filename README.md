@@ -21,7 +21,7 @@ développé pour l'instant.
 | Arborescence, création, renommage, suppression de `.mdx` / `.md` | ✅ |
 | Liens `[[wiki-link]]`, y compris cross-workspace `[[Workspace:page]]` | ✅ |
 | Éditeur WYSIWYG (Editor.js) + éditeur source, aller-retour sans perte | ✅ |
-| Aperçu MDX avec `Callout`, `Accordion`, `Toggle` et liens cliquables | ✅ |
+| Aperçu MDX avec `Callout`, `Accordion` et liens cliquables | ✅ |
 | Syntaxe Markdown étendue : tableaux, tâches, notes, définitions, ==surligné==, H~2~O, x^2^, `{#ancre}`, code coloré | ✅ |
 | Images `.png` / `.jpg` / `.jpeg` : arborescence, visionneuse, WYSIWYG et aperçu | ✅ |
 | Graphe de connaissances (workspace / global), liens cassés, orphelines | ✅ |

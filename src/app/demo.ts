@@ -51,12 +51,6 @@ Participants : équipe doc, équipe plateforme.
 > Aucune action Git ne doit être déclenchée par l'outil sur un workspace local.
 > Le développeur garde la main sur ses commits.
 
-## Actions
-
-<Toggle label="Rédiger la note d'architecture" defaultOn />
-
-<Toggle label="Préparer la démo du graphe" />
-
 Voir aussi [[idees/graphe-de-connaissances]] et [[index|la page d'accueil]].
 `,
 

@@ -14,7 +14,6 @@ import {
 } from '../../core/parser/extendedMarkdown';
 import { resolveImagePath } from '../../core/filesystem/FileSystem';
 import { buildCodeMask, parseFrontmatter, slugifyHeading } from '../../core/parser/MDXParser';
-import { indexToggles, setToggleChecked } from '../../core/parser/toggles';
 import { useWorkspaceImage } from '../images';
 import { useDocStore } from '../store/DocStore';
 import { EmptyState } from './Editor';
@@ -55,7 +54,7 @@ export function Preview() {
   const components = useMDXComponentMap();
   const source = useMemo(() => {
     const { content: body } = parseFrontmatter(draft);
-    return replaceWikiLinks(escapeHeadingIds(indexToggles(body)));
+    return replaceWikiLinks(escapeHeadingIds(body));
   }, [draft]);
 
   useEffect(() => {
@@ -167,25 +166,6 @@ function useMDXComponentMap(): MDXComponents {
         </details>
       ),
 
-      Toggle: ({
-        label,
-        defaultOn,
-        __toggleIndex,
-      }: {
-        label?: string;
-        defaultOn?: boolean;
-        __toggleIndex?: number;
-      }) => (
-        <ToggleView
-          label={label ?? 'Activé'}
-          checked={Boolean(defaultOn)}
-          onChange={(checked) => {
-            if (__toggleIndex === undefined) return;
-            rewriteBody((body) => setToggleChecked(body, __toggleIndex, checked));
-          }}
-        />
-      ),
-
       a: ({ href, children, ...props }: ComponentProps<'a'>) => (
         <a
           {...props}
@@ -251,37 +231,6 @@ function WorkspaceImage({
     <span className="preview__image-missing" title={path}>
       {image.status === 'loading' ? 'Chargement de l’image…' : `Image introuvable : ${path}`}
     </span>
-  );
-}
-
-/**
- * Case `<Toggle>` contrôlée localement : la source n'est recompilée qu'après un
- * délai, la case doit donc refléter le clic tout de suite.
- */
-function ToggleView({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-}) {
-  const [value, setValue] = useState(checked);
-  useEffect(() => setValue(checked), [checked]);
-
-  return (
-    <label className="toggle">
-      <input
-        type="checkbox"
-        checked={value}
-        onChange={(event) => {
-          setValue(event.target.checked);
-          onChange(event.target.checked);
-        }}
-      />
-      <span>{label}</span>
-    </label>
   );
 }
 

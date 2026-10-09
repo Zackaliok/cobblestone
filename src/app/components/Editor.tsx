@@ -17,7 +17,6 @@ import { parseFrontmatter, serializeDocument } from '../../core/parser/MDXParser
 import { resolveImagePath } from '../../core/filesystem/FileSystem';
 import { ImageTool, type ImageToolConfig } from '../editor/ImageTool';
 import { MdxBlockTool } from '../editor/MdxBlockTool';
-import { ToggleTool } from '../editor/ToggleTool';
 import { useDocStore } from '../store/DocStore';
 import { FrontmatterPanel } from './FrontmatterPanel';
 import { SourceEditor } from './SourceEditor';
@@ -88,7 +87,6 @@ function WysiwygEditor() {
         image: { class: ImageTool as never, config: imageConfig },
         marker: { class: Marker as never },
         inlineCode: { class: InlineCode as never },
-        toggle: { class: ToggleTool as never },
         mdx: { class: MdxBlockTool as never },
       },
       data: toEditorData(initial),

@@ -52,7 +52,7 @@ directement ; tu gardes la main complète sur tes commits. Le seul appel à Git 
 
 - **Arborescence** — création, renommage, suppression de fichiers depuis la barre latérale
 - **Éditeur WYSIWYG** — le menu `/` insère titres, listes, citations, et les composants
-  maison (`Callout`, `Accordion`, `Toggle`, tableau, bloc de code)
+  maison (`Callout`, `Accordion`, tableau, bloc de code)
 - **Vue Source** — édition directe du MDX ; taper `[[` propose les notes existantes
 - **Aller-retour entre les deux modes** — c'est le point le plus délicat : ouvrir un
   fichier existant en WYSIWYG, enregistrer, puis vérifier avec `git diff` que rien n'a été
