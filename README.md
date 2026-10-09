@@ -28,6 +28,7 @@ développé pour l'instant.
 | Recherche full-text insensible aux accents | ✅ |
 | Historique Git local, en lecture seule | ✅ |
 | Rafraîchissement automatique quand les fichiers changent sur le disque | ✅ |
+| Mise à jour automatique depuis les releases GitHub (voir `RELEASE.md`) | ✅ |
 | Mode serveur (wiki, LDAP, auto-commit) | ⛔ non développé |
 
 ---

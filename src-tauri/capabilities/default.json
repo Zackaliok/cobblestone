@@ -5,10 +5,14 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
+    "log:default",
     "opener:allow-open-url",
 
     "dialog:allow-open",
     "store:default",
+
+    "updater:default",
+    "process:allow-restart",
 
     "fs:allow-read-text-file",
     "fs:allow-read-file",
