@@ -6,6 +6,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { installGlobalDiagnostics } from './diagnostics';
 import { startRecoveryAutosave } from './recovery';
 import './styles.css';
+import './images.css';
 
 installGlobalDiagnostics();
 startRecoveryAutosave();

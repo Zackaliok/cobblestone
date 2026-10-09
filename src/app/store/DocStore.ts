@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 
 import type { FileSystem } from '../../core/filesystem/FileSystem';
-import { pathToSlug } from '../../core/filesystem/FileSystem';
+import { isImageFile, pathToSlug } from '../../core/filesystem/FileSystem';
 import { MemoryFileSystem } from '../../core/filesystem/MemoryFileSystem';
 import { buildGraph } from '../../core/graph/KnowledgeGraph';
 import type { Graph } from '../../core/graph/types';
@@ -19,7 +19,7 @@ import type {
   WorkspaceDescriptor,
 } from '../../core/workspace/types';
 import { noteId } from '../../core/workspace/types';
-import { DEMO_ALPHA_NOTES, DEMO_NOTES } from '../demo';
+import { DEMO_ALPHA_NOTES, DEMO_NOTES, loadDemoAlphaImages } from '../demo';
 import {
   loadRecovery,
   loadSession,
@@ -65,6 +65,11 @@ interface DocState {
   persisted: string;
   /** Documents ouverts récemment, le plus récent en tête. */
   recents: OpenDocument[];
+  /**
+   * Image affichée seule, à la place de la vue courante. Le document ouvert et
+   * son brouillon restent intacts derrière : revenir à une vue les retrouve.
+   */
+  openImage: OpenDocument | null;
 
   view: EditorView;
   graphScope: Scope;
@@ -82,6 +87,8 @@ interface DocState {
 
   openNote(workspaceId: string, path: string): Promise<void>;
   followLink(link: WikiLink, fromWorkspaceId: string): Promise<void>;
+  openImageFile(workspaceId: string, path: string): void;
+  closeImage(): void;
   restoreRecovery(): Promise<void>;
   dismissRecovery(): void;
   setDraft(draft: string): void;
@@ -119,6 +126,7 @@ export const useDocStore = create<DocState>()((set, get) => ({
   draft: '',
   persisted: '',
   recents: [],
+  openImage: null,
 
   view: 'wysiwyg',
   graphScope: 'workspace',
@@ -212,6 +220,8 @@ export const useDocStore = create<DocState>()((set, get) => ({
     watchers.delete(workspaceId);
     manager.detach(workspaceId);
 
+    if (get().openImage?.workspaceId === workspaceId) set({ openImage: null });
+
     const workspaces = get().workspaces.filter((workspace) => workspace.id !== workspaceId);
     const { [workspaceId]: _tree, ...trees } = get().trees;
     const { [workspaceId]: _notes, ...notesByWorkspace } = get().notesByWorkspace;
@@ -271,6 +281,7 @@ export const useDocStore = create<DocState>()((set, get) => ({
 
       set((state) => ({
         open: entry,
+        openImage: null,
         draft: raw,
         persisted: raw,
         activeWorkspaceId: workspaceId,
@@ -314,6 +325,14 @@ export const useDocStore = create<DocState>()((set, get) => ({
 
     const target = allNotes.find((note) => note.id === resolved.targetId);
     if (target) await get().openNote(target.workspaceId, target.path);
+  },
+
+  openImageFile(workspaceId, path) {
+    set({ openImage: { workspaceId, path }, activeWorkspaceId: workspaceId, status: null });
+  },
+
+  closeImage() {
+    set({ openImage: null });
   },
 
   async restoreRecovery() {
@@ -379,9 +398,12 @@ export const useDocStore = create<DocState>()((set, get) => ({
   async deleteNote(workspaceId, path) {
     try {
       await manager.deleteNote(workspaceId, path);
-      const open = get().open;
+      const { open, openImage } = get();
       if (open?.workspaceId === workspaceId && open.path === path) {
         set({ open: null, draft: '', persisted: '' });
+      }
+      if (openImage?.workspaceId === workspaceId && openImage.path === path) {
+        set({ openImage: null });
       }
       await get().refreshWorkspace(workspaceId);
       set({ status: { text: `${path} supprimé`, tone: 'info' } });
@@ -395,16 +417,21 @@ export const useDocStore = create<DocState>()((set, get) => ({
       const target = await manager.renameNote(workspaceId, from, to);
       await get().refreshWorkspace(workspaceId);
 
-      const open = get().open;
+      const { open, openImage } = get();
       if (open?.workspaceId === workspaceId && open.path === from) {
         await get().openNote(workspaceId, target);
       }
+      if (openImage?.workspaceId === workspaceId && openImage.path === from) {
+        set({ openImage: { workspaceId, path: target } });
+      }
 
-      // Les wiki-links pointant vers l'ancien nom ne sont pas réécrits : ils
+      // Les liens vers l'ancien nom ne sont pas réécrits : les wiki-links
       // apparaîtront comme cassés dans le graphe, ce qui les rend repérables.
       set({
         status: {
-          text: `Renommé en ${target}. Les liens vers « ${pathToSlug(from)} » sont maintenant cassés.`,
+          text: isImageFile(from)
+            ? `Renommé en ${target}. Les notes qui affichent « ${from} » ne la trouveront plus.`
+            : `Renommé en ${target}. Les liens vers « ${pathToSlug(from)} » sont maintenant cassés.`,
           tone: 'info',
         },
       });
@@ -414,7 +441,7 @@ export const useDocStore = create<DocState>()((set, get) => ({
   },
 
   setView(view) {
-    set({ view });
+    set({ view, openImage: null });
   },
   setGraphScope(graphScope) {
     set({ graphScope });
@@ -518,7 +545,11 @@ async function loadDemoWorkspaces(set: SetState, get: GetState): Promise<void> {
   };
 
   manager.attach(notes.id, new MemoryFileSystem(notes.location, DEMO_NOTES));
-  manager.attach(alpha.id, new MemoryFileSystem(alpha.location, DEMO_ALPHA_NOTES));
+  const alphaImages = await loadDemoAlphaImages().catch(() => ({}));
+  manager.attach(
+    alpha.id,
+    new MemoryFileSystem(alpha.location, { ...DEMO_ALPHA_NOTES, ...alphaImages }),
+  );
 
   set({
     workspaces: [notes, alpha],
