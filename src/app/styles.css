@@ -1498,14 +1498,21 @@ button {
   color: inherit;
 }
 
-.inline-code,
-.cdx-inline-code {
+/* `@editorjs/inline-code` injecte à l'exécution sa propre règle `.inline-code`
+   (fond rose, texte rouge), insérée *après* cette feuille : à spécificité égale
+   elle gagnerait. On qualifie donc le sélecteur par le conteneur de l'éditeur
+   pour retrouver le même rendu que dans l'aperçu. */
+.codex-editor .inline-code,
+.codex-editor .cdx-inline-code {
+  margin: 0;
   background: var(--bg-inset);
   color: #c3d0e8;
   padding: 1px 5px;
   border-radius: 3px;
   font-family: var(--mono);
   font-size: 0.9em;
+  font-weight: inherit;
+  letter-spacing: normal;
 }
 
 /* Erreur de rendu et brouillon de secours */
