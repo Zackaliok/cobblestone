@@ -20,3 +20,6 @@ Cobblestone-portable.zip
 # Config locale
 .env
 .env.local
+
+# Généré par le workflow Release
+tauri.release.conf.json

@@ -2,7 +2,7 @@ import type { FileEntry } from '../workspace/types';
 import {
   FileSystemError,
   type FileSystem,
-  isDocumentFile,
+  isWorkspaceFile,
   normalizeRelativePath,
   sortEntries,
 } from './FileSystem';
@@ -16,10 +16,10 @@ import {
  */
 export class MemoryFileSystem implements FileSystem {
   readonly root: string;
-  private files = new Map<string, { content: string; modifiedAt: number }>();
+  private files = new Map<string, { content: string | Uint8Array; modifiedAt: number }>();
   private listeners = new Set<() => void>();
 
-  constructor(root = 'memory://workspace', initial: Record<string, string> = {}) {
+  constructor(root = 'memory://workspace', initial: Record<string, string | Uint8Array> = {}) {
     this.root = root;
     for (const [path, content] of Object.entries(initial)) {
       this.files.set(normalizeRelativePath(path), { content, modifiedAt: Date.now() });
@@ -52,7 +52,7 @@ export class MemoryFileSystem implements FileSystem {
       const separator = path.lastIndexOf('/');
       const parentPath = separator === -1 ? '' : path.slice(0, separator);
       const name = path.slice(separator + 1);
-      if (!isDocumentFile(name)) continue;
+      if (!isWorkspaceFile(name)) continue;
       ensureDirectory(parentPath).push({ name, path, isDirectory: false });
     }
 
@@ -67,7 +67,16 @@ export class MemoryFileSystem implements FileSystem {
   async read(path: string): Promise<string> {
     const file = this.files.get(normalizeRelativePath(path));
     if (!file) throw new FileSystemError('Fichier introuvable', path);
+    if (typeof file.content !== 'string') {
+      throw new FileSystemError("Fichier binaire : lecture texte impossible", path);
+    }
     return file.content;
+  }
+
+  async readBinary(path: string): Promise<Uint8Array> {
+    const file = this.files.get(normalizeRelativePath(path));
+    if (!file) throw new FileSystemError('Fichier introuvable', path);
+    return typeof file.content === 'string' ? new TextEncoder().encode(file.content) : file.content;
   }
 
   async write(path: string, content: string): Promise<void> {

@@ -2,6 +2,7 @@ import {
   exists as fsExists,
   mkdir as fsMkdir,
   readDir,
+  readFile,
   readTextFile,
   remove as fsRemove,
   rename as fsRename,
@@ -16,7 +17,7 @@ import {
   IGNORED_DIRECTORIES,
   type FileSystem,
   dirname,
-  isDocumentFile,
+  isWorkspaceFile,
   joinPath,
   normalizeRelativePath,
   sortEntries,
@@ -65,8 +66,8 @@ export class TauriFileSystem implements FileSystem {
 
   /**
    * Parcours récursif avec élagage : un dossier qui ne contient aucun document
-   * (directement ou en profondeur) n'est pas remonté. Sans ça, l'arbre d'un
-   * monorepo serait noyé sous des dossiers de code vides de documentation.
+   * ni image (directement ou en profondeur) n'est pas remonté. Sans ça, l'arbre
+   * d'un monorepo serait noyé sous des dossiers de code vides de documentation.
    */
   private async walk(relative: string, depth: number): Promise<FileEntry[]> {
     if (depth > MAX_DEPTH) return [];
@@ -86,7 +87,7 @@ export class TauriFileSystem implements FileSystem {
         continue;
       }
 
-      if (entry.isFile && isDocumentFile(entry.name)) {
+      if (entry.isFile && isWorkspaceFile(entry.name)) {
         result.push({ name: entry.name, path, isDirectory: false });
       }
     }
@@ -97,6 +98,14 @@ export class TauriFileSystem implements FileSystem {
   async read(path: string): Promise<string> {
     try {
       return await readTextFile(this.absolute(path));
+    } catch (cause) {
+      throw new FileSystemError('Lecture impossible', path, cause);
+    }
+  }
+
+  async readBinary(path: string): Promise<Uint8Array> {
+    try {
+      return await readFile(this.absolute(path));
     } catch (cause) {
       throw new FileSystemError('Lecture impossible', path, cause);
     }

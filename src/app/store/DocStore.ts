@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 
 import type { FileSystem } from '../../core/filesystem/FileSystem';
-import { pathToSlug } from '../../core/filesystem/FileSystem';
+import { isImageFile, pathToSlug } from '../../core/filesystem/FileSystem';
 import { MemoryFileSystem } from '../../core/filesystem/MemoryFileSystem';
 import { buildGraph } from '../../core/graph/KnowledgeGraph';
 import type { Graph } from '../../core/graph/types';
@@ -19,8 +19,14 @@ import type {
   WorkspaceDescriptor,
 } from '../../core/workspace/types';
 import { noteId } from '../../core/workspace/types';
-import { DEMO_ALPHA_NOTES, DEMO_NOTES } from '../demo';
-import { loadSession, saveSession } from '../persistence';
+import { DEMO_ALPHA_NOTES, DEMO_NOTES, loadDemoAlphaImages } from '../demo';
+import {
+  loadRecovery,
+  loadSession,
+  saveRecovery,
+  saveSession,
+  type RecoveredDraft,
+} from '../persistence';
 import { isDesktop } from '../platform';
 
 export type EditorView = 'wysiwyg' | 'source' | 'preview' | 'graph' | 'history';
@@ -59,12 +65,19 @@ interface DocState {
   persisted: string;
   /** Documents ouverts récemment, le plus récent en tête. */
   recents: OpenDocument[];
+  /**
+   * Image affichée seule, à la place de la vue courante. Le document ouvert et
+   * son brouillon restent intacts derrière : revenir à une vue les retrouve.
+   */
+  openImage: OpenDocument | null;
 
   view: EditorView;
   graphScope: Scope;
   searchScope: Scope;
   searchQuery: string;
   status: StatusMessage | null;
+  /** Brouillon retrouvé après une fermeture inattendue, en attente de décision. */
+  recovery: RecoveredDraft | null;
 
   initialize(): Promise<void>;
   addLocalWorkspace(): Promise<void>;
@@ -74,6 +87,10 @@ interface DocState {
 
   openNote(workspaceId: string, path: string): Promise<void>;
   followLink(link: WikiLink, fromWorkspaceId: string): Promise<void>;
+  openImageFile(workspaceId: string, path: string): void;
+  closeImage(): void;
+  restoreRecovery(): Promise<void>;
+  dismissRecovery(): void;
   setDraft(draft: string): void;
   save(): Promise<void>;
   createNote(workspaceId: string, path: string): Promise<void>;
@@ -90,6 +107,9 @@ interface DocState {
 const manager = new WorkspaceManager();
 /** Arrêt des surveillances de fichiers, par workspace. */
 const watchers = new Map<string, () => void>();
+/** Scan en cours par workspace, et workspaces à rescanner une fois celui-ci terminé. */
+const refreshRuns = new Map<string, Promise<void>>();
+const refreshPending = new Set<string>();
 
 export const useDocStore = create<DocState>()((set, get) => ({
   ready: false,
@@ -106,12 +126,14 @@ export const useDocStore = create<DocState>()((set, get) => ({
   draft: '',
   persisted: '',
   recents: [],
+  openImage: null,
 
   view: 'wysiwyg',
   graphScope: 'workspace',
   searchScope: 'workspace',
   searchQuery: '',
   status: null,
+  recovery: null,
 
   async initialize() {
     if (!isDesktop()) {
@@ -138,6 +160,11 @@ export const useDocStore = create<DocState>()((set, get) => ({
           : (workspaces[0]?.id ?? null),
       ready: true,
     });
+
+    // Ne proposer la restauration que si le workspace existe encore.
+    const recovery = await loadRecovery();
+    if (recovery && workspaces.some((w) => w.id === recovery.workspaceId)) set({ recovery });
+    else if (recovery) await saveRecovery(null);
 
     for (const workspace of workspaces) {
       if (workspace.status === 'ready') await get().refreshWorkspace(workspace.id);
@@ -188,9 +215,12 @@ export const useDocStore = create<DocState>()((set, get) => ({
   },
 
   async removeWorkspace(workspaceId) {
+    refreshPending.delete(workspaceId);
     watchers.get(workspaceId)?.();
     watchers.delete(workspaceId);
     manager.detach(workspaceId);
+
+    if (get().openImage?.workspaceId === workspaceId) set({ openImage: null });
 
     const workspaces = get().workspaces.filter((workspace) => workspace.id !== workspaceId);
     const { [workspaceId]: _tree, ...trees } = get().trees;
@@ -219,29 +249,29 @@ export const useDocStore = create<DocState>()((set, get) => ({
     void persist(get);
   },
 
-  async refreshWorkspace(workspaceId) {
-    if (!manager.has(workspaceId)) return;
-
-    try {
-      const result = await manager.scan(workspaceId);
-
-      set((state) => ({
-        trees: { ...state.trees, [workspaceId]: result.tree },
-        notesByWorkspace: { ...state.notesByWorkspace, [workspaceId]: result.notes },
-        issues: {
-          ...state.issues,
-          [workspaceId]: { truncated: result.truncated, failures: result.failures },
-        },
-        workspaces: state.workspaces.map((workspace) =>
-          workspace.id === workspaceId ? { ...workspace, status: 'ready' as const } : workspace,
-        ),
-      }));
-
-      reindex(set, get);
-      await startWatching(workspaceId, get);
-    } catch (error) {
-      markUnavailable(set, workspaceId, describeError(error));
+  refreshWorkspace(workspaceId) {
+    // Un seul scan à la fois par workspace. Le watcher peut émettre en rafale
+    // (git, build, IDE) : lancer un scan complet par évènement empilerait des
+    // parcours concurrents du disque. Les demandes arrivées pendant un scan se
+    // fondent en un unique nouveau passage.
+    const running = refreshRuns.get(workspaceId);
+    if (running) {
+      refreshPending.add(workspaceId);
+      return running;
     }
+
+    const run = (async () => {
+      try {
+        do {
+          refreshPending.delete(workspaceId);
+          await scanWorkspace(set, get, workspaceId);
+        } while (refreshPending.has(workspaceId));
+      } finally {
+        refreshRuns.delete(workspaceId);
+      }
+    })();
+    refreshRuns.set(workspaceId, run);
+    return run;
   },
 
   async openNote(workspaceId, path) {
@@ -251,6 +281,7 @@ export const useDocStore = create<DocState>()((set, get) => ({
 
       set((state) => ({
         open: entry,
+        openImage: null,
         draft: raw,
         persisted: raw,
         activeWorkspaceId: workspaceId,
@@ -294,6 +325,31 @@ export const useDocStore = create<DocState>()((set, get) => ({
 
     const target = allNotes.find((note) => note.id === resolved.targetId);
     if (target) await get().openNote(target.workspaceId, target.path);
+  },
+
+  openImageFile(workspaceId, path) {
+    set({ openImage: { workspaceId, path }, activeWorkspaceId: workspaceId, status: null });
+  },
+
+  closeImage() {
+    set({ openImage: null });
+  },
+
+  async restoreRecovery() {
+    const { recovery } = get();
+    if (!recovery) return;
+
+    await get().openNote(recovery.workspaceId, recovery.path);
+    // `persisted` reste le contenu du disque : le document apparaît modifié
+    // et rien n'est écrit tant que l'utilisateur n'enregistre pas.
+    if (get().open?.path === recovery.path) {
+      set({ draft: recovery.draft, recovery: null });
+    }
+  },
+
+  dismissRecovery() {
+    set({ recovery: null });
+    void saveRecovery(null);
   },
 
   setDraft(draft) {
@@ -342,9 +398,12 @@ export const useDocStore = create<DocState>()((set, get) => ({
   async deleteNote(workspaceId, path) {
     try {
       await manager.deleteNote(workspaceId, path);
-      const open = get().open;
+      const { open, openImage } = get();
       if (open?.workspaceId === workspaceId && open.path === path) {
         set({ open: null, draft: '', persisted: '' });
+      }
+      if (openImage?.workspaceId === workspaceId && openImage.path === path) {
+        set({ openImage: null });
       }
       await get().refreshWorkspace(workspaceId);
       set({ status: { text: `${path} supprimé`, tone: 'info' } });
@@ -358,16 +417,21 @@ export const useDocStore = create<DocState>()((set, get) => ({
       const target = await manager.renameNote(workspaceId, from, to);
       await get().refreshWorkspace(workspaceId);
 
-      const open = get().open;
+      const { open, openImage } = get();
       if (open?.workspaceId === workspaceId && open.path === from) {
         await get().openNote(workspaceId, target);
       }
+      if (openImage?.workspaceId === workspaceId && openImage.path === from) {
+        set({ openImage: { workspaceId, path: target } });
+      }
 
-      // Les wiki-links pointant vers l'ancien nom ne sont pas réécrits : ils
+      // Les liens vers l'ancien nom ne sont pas réécrits : les wiki-links
       // apparaîtront comme cassés dans le graphe, ce qui les rend repérables.
       set({
         status: {
-          text: `Renommé en ${target}. Les liens vers « ${pathToSlug(from)} » sont maintenant cassés.`,
+          text: isImageFile(from)
+            ? `Renommé en ${target}. Les notes qui affichent « ${from} » ne la trouveront plus.`
+            : `Renommé en ${target}. Les liens vers « ${pathToSlug(from)} » sont maintenant cassés.`,
           tone: 'info',
         },
       });
@@ -377,7 +441,7 @@ export const useDocStore = create<DocState>()((set, get) => ({
   },
 
   setView(view) {
-    set({ view });
+    set({ view, openImage: null });
   },
   setGraphScope(graphScope) {
     set({ graphScope });
@@ -407,6 +471,32 @@ type GetState = () => DocState;
  * `unavailable`. Le dossier peut être sur un disque externe débranché — le
  * retirer silencieusement ferait disparaître le travail de l'utilisateur.
  */
+/** Scan complet d'un workspace ; voir `refreshWorkspace` pour la sérialisation. */
+async function scanWorkspace(set: SetState, get: GetState, workspaceId: string): Promise<void> {
+    if (!manager.has(workspaceId)) return;
+
+    try {
+      const result = await manager.scan(workspaceId);
+
+      set((state) => ({
+        trees: { ...state.trees, [workspaceId]: result.tree },
+        notesByWorkspace: { ...state.notesByWorkspace, [workspaceId]: result.notes },
+        issues: {
+          ...state.issues,
+          [workspaceId]: { truncated: result.truncated, failures: result.failures },
+        },
+        workspaces: state.workspaces.map((workspace) =>
+          workspace.id === workspaceId ? { ...workspace, status: 'ready' as const } : workspace,
+        ),
+      }));
+
+      reindex(set, get);
+      await startWatching(workspaceId, get);
+    } catch (error) {
+      markUnavailable(set, workspaceId, describeError(error));
+    }
+  }
+
 async function attachLocalWorkspace(descriptor: WorkspaceDescriptor): Promise<Workspace> {
   try {
     const { TauriFileSystem } = await import('../../core/filesystem/TauriFileSystem');
@@ -455,7 +545,11 @@ async function loadDemoWorkspaces(set: SetState, get: GetState): Promise<void> {
   };
 
   manager.attach(notes.id, new MemoryFileSystem(notes.location, DEMO_NOTES));
-  manager.attach(alpha.id, new MemoryFileSystem(alpha.location, DEMO_ALPHA_NOTES));
+  const alphaImages = await loadDemoAlphaImages().catch(() => ({}));
+  manager.attach(
+    alpha.id,
+    new MemoryFileSystem(alpha.location, { ...DEMO_ALPHA_NOTES, ...alphaImages }),
+  );
 
   set({
     workspaces: [notes, alpha],
