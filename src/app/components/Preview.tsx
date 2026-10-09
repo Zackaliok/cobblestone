@@ -191,13 +191,6 @@ function useMDXComponentMap(): MDXComponents {
         </details>
       ),
 
-      Toggle: ({ label, defaultOn }: { label?: string; defaultOn?: boolean }) => (
-        <label className="toggle">
-          <input type="checkbox" defaultChecked={Boolean(defaultOn)} />
-          <span>{label ?? 'Activé'}</span>
-        </label>
-      ),
-
       a: ({ href, children, ...props }: ComponentProps<'a'>) => (
         <a
           {...props}

@@ -1077,14 +1077,6 @@ button {
   padding-top: 8px;
 }
 
-.toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 1em;
-  cursor: pointer;
-}
-
 /* --- graphe -------------------------------------------------------------- */
 
 .graph {
