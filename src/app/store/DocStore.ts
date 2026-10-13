@@ -6,6 +6,7 @@ import { MemoryFileSystem } from '../../core/filesystem/MemoryFileSystem';
 import { buildGraph } from '../../core/graph/KnowledgeGraph';
 import type { Graph } from '../../core/graph/types';
 import { resolveWikiLink } from '../../core/parser/MDXParser';
+import { reconcileWithDisk } from '../../core/workspace/externalChanges';
 import {
   WorkspaceManager,
   uniqueWorkspaceName,
@@ -63,6 +64,14 @@ interface DocState {
   draft: string;
   /** Contenu tel qu'il est sur le disque, pour détecter les modifications. */
   persisted: string;
+  /**
+   * Incrémenté quand le brouillon est remplacé de l'extérieur (rechargement
+   * depuis le disque). Le WYSIWYG ne lit le brouillon qu'au montage : ce compteur
+   * lui indique qu'il doit se reconstruire.
+   */
+  revision: number;
+  /** Version du disque divergente d'un brouillon modifié, en attente d'arbitrage. */
+  conflict: { disk: string } | null;
   /** Documents ouverts récemment, le plus récent en tête. */
   recents: OpenDocument[];
   /**
@@ -93,6 +102,9 @@ interface DocState {
   dismissRecovery(): void;
   setDraft(draft: string): void;
   save(): Promise<void>;
+  /** Compare le document ouvert au disque et recharge ou signale un conflit. */
+  checkExternalChanges(): Promise<void>;
+  resolveConflict(choice: 'disk' | 'mine'): void;
   createNote(workspaceId: string, path: string): Promise<void>;
   deleteNote(workspaceId: string, path: string): Promise<void>;
   renameNote(workspaceId: string, from: string, to: string): Promise<void>;
@@ -125,6 +137,8 @@ export const useDocStore = create<DocState>()((set, get) => ({
   open: null,
   draft: '',
   persisted: '',
+  revision: 0,
+  conflict: null,
   recents: [],
   openImage: null,
 
@@ -235,7 +249,7 @@ export const useDocStore = create<DocState>()((set, get) => ({
       notesByWorkspace,
       issues,
       open,
-      ...(open ? {} : { draft: '', persisted: '' }),
+      ...(open ? {} : { draft: '', persisted: '', conflict: null }),
       activeWorkspaceId:
         get().activeWorkspaceId === workspaceId ? (workspaces[0]?.id ?? null) : get().activeWorkspaceId,
     });
@@ -284,6 +298,7 @@ export const useDocStore = create<DocState>()((set, get) => ({
         openImage: null,
         draft: raw,
         persisted: raw,
+        conflict: null,
         activeWorkspaceId: workspaceId,
         status: null,
         recents: [
@@ -357,8 +372,18 @@ export const useDocStore = create<DocState>()((set, get) => ({
   },
 
   async save() {
-    const { open, draft } = get();
+    const { open, revision } = get();
     if (!open) return;
+
+    // Dernier rempart : si le fichier a été modifié ailleurs depuis son
+    // ouverture, l'écraser ferait disparaître ces modifications sans que
+    // personne ne l'ait décidé.
+    await get().checkExternalChanges();
+    // Conflit à arbitrer, autre document, ou brouillon rechargé depuis le
+    // disque : dans tous les cas, il n'y a rien à écrire.
+    if (get().conflict || get().open !== open || get().revision !== revision) return;
+
+    const { draft } = get();
 
     try {
       const note = await manager.saveNote(open.workspaceId, open.path, draft);
@@ -384,6 +409,65 @@ export const useDocStore = create<DocState>()((set, get) => ({
     }
   },
 
+  async checkExternalChanges() {
+    const { open } = get();
+    if (!open) return;
+
+    let disk: string;
+    try {
+      disk = await manager.readRaw(open.workspaceId, open.path);
+    } catch {
+      // Fichier supprimé ou renommé ailleurs : le brouillon reste ouvert, et
+      // l'enregistrer le recréera. Le rescan du workspace mettra l'arbre à jour.
+      return;
+    }
+
+    // Le document a pu changer pendant la lecture.
+    const state = get();
+    if (state.open !== open) return;
+
+    const change = reconcileWithDisk({ draft: state.draft, persisted: state.persisted, disk });
+
+    switch (change.kind) {
+      case 'none':
+        if (state.conflict) set({ conflict: null });
+        return;
+      case 'adopt':
+        set({ persisted: change.disk, conflict: null });
+        return;
+      case 'reload':
+        set((current) => ({
+          draft: change.disk,
+          persisted: change.disk,
+          revision: current.revision + 1,
+          conflict: null,
+          status: { text: `${open.path} rechargé depuis le disque`, tone: 'info' as const },
+        }));
+        return;
+      case 'conflict':
+        if (state.conflict?.disk !== change.disk) set({ conflict: { disk: change.disk } });
+        return;
+    }
+  },
+
+  resolveConflict(choice) {
+    const { conflict } = get();
+    if (!conflict) return;
+
+    if (choice === 'disk') {
+      set((state) => ({
+        draft: conflict.disk,
+        persisted: conflict.disk,
+        revision: state.revision + 1,
+        conflict: null,
+      }));
+    } else {
+      // On garde le brouillon, mais en sachant ce qu'il y a sur le disque : le
+      // prochain enregistrement l'écrasera, cette fois délibérément.
+      set({ persisted: conflict.disk, conflict: null });
+    }
+  },
+
   async createNote(workspaceId, path) {
     try {
       const note = await manager.createNote(workspaceId, path);
@@ -400,7 +484,7 @@ export const useDocStore = create<DocState>()((set, get) => ({
       await manager.deleteNote(workspaceId, path);
       const { open, openImage } = get();
       if (open?.workspaceId === workspaceId && open.path === path) {
-        set({ open: null, draft: '', persisted: '' });
+        set({ open: null, draft: '', persisted: '', conflict: null });
       }
       if (openImage?.workspaceId === workspaceId && openImage.path === path) {
         set({ openImage: null });
@@ -586,8 +670,10 @@ function reindex(set: SetState, get: GetState): void {
  * Surveille le dossier pour se resynchroniser quand la doc est modifiée
  * ailleurs (IDE, `git checkout`…).
  *
- * Le rescan n'écrase jamais le brouillon en cours : seul l'index est
- * rafraîchi. Écraser l'éditeur pendant la frappe serait une perte de travail.
+ * Le rescan n'écrase jamais un brouillon modifié : le document ouvert n'est
+ * rechargé que s'il est intact, sinon un conflit est signalé (voir
+ * `checkExternalChanges`). Écraser l'éditeur pendant la frappe serait une
+ * perte de travail.
  */
 async function startWatching(workspaceId: string, get: GetState): Promise<void> {
   if (watchers.has(workspaceId)) return;
@@ -595,6 +681,7 @@ async function startWatching(workspaceId: string, get: GetState): Promise<void> 
   try {
     const stop = await manager.watch(workspaceId, () => {
       void get().refreshWorkspace(workspaceId);
+      if (get().open?.workspaceId === workspaceId) void get().checkExternalChanges();
     });
     if (stop) watchers.set(workspaceId, stop);
   } catch {

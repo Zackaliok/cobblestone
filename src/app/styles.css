@@ -154,6 +154,28 @@ button {
   min-height: 0;
 }
 
+/* Fichier modifié à l'extérieur pendant l'édition */
+.conflict-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--warning);
+  background: rgba(224, 175, 104, 0.1);
+  color: var(--text);
+}
+
+.conflict-banner p {
+  margin: 0;
+}
+
+.conflict-banner__actions {
+  display: flex;
+  flex: none;
+  gap: 8px;
+}
+
 /* --- onglets de workspace ----------------------------------------------- */
 
 .workspace-tabs {
