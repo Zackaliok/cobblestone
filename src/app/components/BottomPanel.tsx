@@ -5,6 +5,7 @@ import type { GraphNode } from '../../core/graph/types';
 import { noteId } from '../../core/workspace/types';
 import { useOpenNote } from '../hooks/useWorkspace';
 import { useDocStore } from '../store/DocStore';
+import { ZoomControl } from './ZoomControl';
 
 type Tab = 'backlinks' | 'orphans' | 'recents';
 
@@ -72,6 +73,7 @@ export function BottomPanel() {
             Récents
           </button>
         </div>
+        <ZoomControl />
         <button
           type="button"
           className="bottom-panel__collapse"
