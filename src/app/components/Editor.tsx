@@ -16,7 +16,9 @@ import {
 import { parseFrontmatter, serializeDocument } from '../../core/parser/MDXParser';
 import { resolveImagePath } from '../../core/filesystem/FileSystem';
 import { ImageTool, type ImageToolConfig } from '../editor/ImageTool';
+import { CalloutTool } from '../editor/CalloutTool';
 import { MdxBlockTool } from '../editor/MdxBlockTool';
+import { EmojiAutocomplete } from './EmojiAutocomplete';
 import { useDocStore } from '../store/DocStore';
 import { FrontmatterPanel } from './FrontmatterPanel';
 import { SourceEditor } from './SourceEditor';
@@ -31,8 +33,12 @@ const SYNC_DELAY_MS = 300;
  * par les blocs le transformerait en paragraphes et détruirait le YAML.
  */
 export function Editor({ mode }: { mode: 'wysiwyg' | 'source' }) {
+  // Un rechargement depuis le disque reconstruit tout l'éditeur, panneau
+  // Propriétés compris : tous deux ne lisent le brouillon qu'au montage.
+  const revision = useDocStore((state) => state.revision);
+
   if (mode === 'source') return <SourceEditor />;
-  return <WysiwygEditor />;
+  return <WysiwygEditor key={revision} />;
 }
 
 function WysiwygEditor() {
@@ -87,6 +93,7 @@ function WysiwygEditor() {
         image: { class: ImageTool as never, config: imageConfig },
         marker: { class: Marker as never },
         inlineCode: { class: InlineCode as never },
+        callout: { class: CalloutTool as never, inlineToolbar: true },
         mdx: { class: MdxBlockTool as never },
       },
       data: toEditorData(initial),
@@ -143,6 +150,7 @@ function WysiwygEditor() {
       <FrontmatterPanel />
       {failure && <p className="editor__error">Synchronisation impossible : {failure}</p>}
       <div className="editor__surface" ref={holderRef} />
+      <EmojiAutocomplete surfaceRef={holderRef} />
     </div>
   );
 }

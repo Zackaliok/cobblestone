@@ -119,7 +119,6 @@ Insérables depuis le menu `/` :
 - `<Callout type="info" />` — Encadré informatif
 - `<Callout type="warning" />` — Encadré d'avertissement
 - `<Accordion />` — Section pliable
-- `<Toggle />` — Toggle on/off
 
 ---
 
@@ -395,7 +394,7 @@ GIT_AUTHOR_EMAIL=cobblestone@entreprise.local
 - [x] `WorkspaceTabs`, `Sidebar`, `SearchBar`, `BottomPanel`
 - [x] `Editor` double mode : WYSIWYG (Editor.js) + Source, avec autocomplétion des `[[`
 - [x] `FrontmatterPanel` — édition YAML séparée du corps du document
-- [x] `Preview` — rendu MDX + composants Callout / Accordion / Toggle
+- [x] `Preview` — rendu MDX + composants Callout / Accordion
 - [x] `GraphView` — disposition d3-force calculée en une passe synchrone
 - [x] `App.tsx` — layout complet, Ctrl+S, chargement différé des vues lourdes
 - [x] Persistance des workspaces via `plugin-store` + revalidation au démarrage

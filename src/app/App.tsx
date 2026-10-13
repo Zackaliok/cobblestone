@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect } from 'react';
 
 import { BottomPanel } from './components/BottomPanel';
+import { ConflictBanner } from './components/ConflictBanner';
 import { Editor } from './components/Editor';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { HistoryPanel } from './components/HistoryPanel';
@@ -29,6 +30,7 @@ export function App() {
   const ready = useDocStore((state) => state.ready);
   const initialize = useDocStore((state) => state.initialize);
   const save = useDocStore((state) => state.save);
+  const checkExternalChanges = useDocStore((state) => state.checkExternalChanges);
   const view = useDocStore((state) => state.view);
   const status = useDocStore((state) => state.status);
   const setStatus = useDocStore((state) => state.setStatus);
@@ -53,6 +55,21 @@ export function App() {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [save]);
+
+  // Comme dans un IDE : en revenant sur la fenêtre, on vérifie que le fichier
+  // ouvert n'a pas été modifié entre-temps par un autre outil.
+  useEffect(() => {
+    const onFocus = () => void checkExternalChanges();
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') onFocus();
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [checkExternalChanges]);
 
   // Zoom façon navigateur. En phase de capture : les blocs MDX de l'éditeur
   // arrêtent la propagation des touches, le raccourci doit passer quand même.
@@ -128,6 +145,8 @@ export function App() {
               </button>
             </div>
           </div>
+
+          <ConflictBanner />
 
           <div className="app__view">
             <ErrorBoundary

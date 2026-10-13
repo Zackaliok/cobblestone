@@ -21,7 +21,7 @@ body:
     attributes:
       label: Étapes pour reproduire
       placeholder: |
-        1. Ouvrir une note contenant `<Toggle label="Test" />`
+        1. Ouvrir une note contenant `- [ ] Test`
         2. Passer en Aperçu et cocher la case
         3. Ctrl+S, puis rouvrir le fichier
     validations:

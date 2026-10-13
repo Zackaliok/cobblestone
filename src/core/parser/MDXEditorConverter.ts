@@ -20,7 +20,11 @@ export type EditorBlock =
   | { type: 'quote'; data: { text: string; caption: string } }
   | { type: 'image'; data: { src: string; alt: string } }
   | { type: 'delimiter'; data: Record<string, never> }
+  | { type: 'callout'; data: { type: CalloutType; text: string } }
   | { type: 'mdx'; data: { code: string } };
+
+export const CALLOUT_TYPES = ['info', 'warning', 'danger', 'success'] as const;
+export type CalloutType = (typeof CALLOUT_TYPES)[number];
 
 export interface EditorDocument {
   blocks: EditorBlock[];
@@ -185,8 +189,42 @@ function consumeJsx(lines: string[], start: number, blocks: EditorBlock[]): numb
     }
   }
 
-  blocks.push({ type: 'mdx', data: { code: collected.join('\n') } });
+  const code = collected.join('\n');
+  const callout = tag === 'Callout' ? parseSimpleCallout(collected) : null;
+  blocks.push(callout ?? { type: 'mdx', data: { code } });
   return index;
+}
+
+/**
+ * Un Callout ne devient un bloc éditable que sous la forme exacte que
+ * `blocksToMdx` sait réécrire : balise ouvrante `type="…"` seule sur sa ligne,
+ * corps de texte inline indenté de deux espaces, balise fermante seule. Tout
+ * le reste (ligne vide, titre, liste, JSX imbriqué, attribut en plus) reste du
+ * MDX brut pour que le round-trip ne perde rien.
+ */
+function parseSimpleCallout(lines: string[]): EditorBlock | null {
+  if (lines.length < 3) return null;
+  const open = /^<Callout type="(info|warning|danger|success)">$/.exec(lines[0]!);
+  if (!open || lines[lines.length - 1] !== '</Callout>') return null;
+
+  const body = lines.slice(1, -1);
+  // Callout fraîchement inséré : une seule ligne d'indentation, texte vide.
+  if (body.length === 1 && body[0] === '  ') {
+    return { type: 'callout', data: { type: open[1] as CalloutType, text: '' } };
+  }
+  const blockSyntax = /^(?:#{1,6}\s|[-*+]\s|\d+[.)]\s|>|<|\||```|~~~|!\[|import\s|export\s)/;
+  for (const line of body) {
+    if (!line.startsWith('  ') || line.trim() === '' || line.startsWith('   ')) return null;
+    if (blockSyntax.test(line.slice(2)) || line.includes('</Callout>')) return null;
+  }
+
+  return {
+    type: 'callout',
+    data: {
+      type: open[1] as CalloutType,
+      text: markdownToHtml(body.map((line) => line.slice(2)).join('\n')),
+    },
+  };
 }
 
 function consumeTable(lines: string[], start: number, blocks: EditorBlock[]): number {
@@ -363,6 +401,16 @@ export function blocksToMdx(blocks: EditorBlock[]): string {
       case 'delimiter':
         chunks.push('---');
         break;
+      case 'callout': {
+        const type = CALLOUT_TYPES.includes(block.data.type) ? block.data.type : 'info';
+        // Une ligne vide ou un texte vide ne se réécrit pas en forme simple.
+        const body = htmlToMarkdown(block.data.text)
+          .split('\n')
+          .filter((line) => line.trim() !== '')
+          .map((line) => `  ${line}`);
+        chunks.push([`<Callout type="${type}">`, ...(body.length ? body : ['  ']), '</Callout>'].join('\n'));
+        break;
+      }
       case 'mdx':
         chunks.push(block.data.code);
         break;
