@@ -36,8 +36,29 @@ fn install_panic_hook() {
     }));
 }
 
+/// Désactive le rendu DMA-BUF de WebKitGTK quand l'application tourne en AppImage.
+///
+/// L'AppImage est construite sur Ubuntu 22.04 et embarque sa pile WebKitGTK,
+/// qui se mélange au Mesa du système hôte. Sur des distributions plus récentes
+/// (Debian 13, #33) ou certains GPU Intel (#18), la webview ne parvient pas à
+/// créer son contexte EGL et la fenêtre ne s'affiche pas. Le `.deb`, lié aux
+/// bibliothèques du système, n'est pas concerné. Une valeur déjà présente dans
+/// l'environnement est respectée, pour pouvoir réactiver le rendu à la main.
+#[cfg(target_os = "linux")]
+fn configure_appimage_rendering() {
+    if std::env::var_os("APPIMAGE").is_some()
+        && std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none()
+    {
+        // Appelé avant le démarrage de Tauri, tant qu'aucun autre thread ne
+        // lit l'environnement.
+        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(target_os = "linux")]
+    configure_appimage_rendering();
     install_panic_hook();
 
     tauri::Builder::default()
