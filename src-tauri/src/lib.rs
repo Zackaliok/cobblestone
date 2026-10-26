@@ -36,8 +36,32 @@ fn install_panic_hook() {
     }));
 }
 
+/// Bascule la webview en rendu logiciel si `COBBLESTONE_SOFTWARE_RENDERING=1`.
+///
+/// Sur certains GPU Intel que le Mesa du système ne sait pas initialiser
+/// (`Could not get intel_device_info`, `failed to create dri2 screen` — #18,
+/// #33), WebKitGTK n'affiche qu'une fenêtre grise. Le rendu logiciel contourne
+/// le GPU, au prix de la fluidité : il reste donc un choix explicite de
+/// l'utilisateur plutôt qu'un réglage par défaut. Les variables déjà présentes
+/// dans l'environnement sont respectées.
+#[cfg(target_os = "linux")]
+fn configure_software_rendering() {
+    if std::env::var_os("COBBLESTONE_SOFTWARE_RENDERING").as_deref() != Some("1".as_ref()) {
+        return;
+    }
+    // Appelé avant le démarrage de Tauri, tant qu'aucun autre thread ne lit
+    // l'environnement.
+    for name in ["LIBGL_ALWAYS_SOFTWARE", "WEBKIT_DISABLE_COMPOSITING_MODE"] {
+        if std::env::var_os(name).is_none() {
+            std::env::set_var(name, "1");
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(target_os = "linux")]
+    configure_software_rendering();
     install_panic_hook();
 
     tauri::Builder::default()

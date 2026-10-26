@@ -57,6 +57,22 @@ WEBKIT_DISABLE_COMPOSITING_MODE=1 ./cobblestone_x.y.z_amd64.AppImage
 
 Dis-nous si l'une de ces variables supprime le crash.
 
+### Fenêtre grise, sans contenu
+
+Si la fenêtre s'ouvre mais reste grise, avec dans le terminal `Could not get intel_device_info`
+ou `failed to create dri2 screen` (voir #33), le pilote Mesa de ton système ne parvient pas à
+initialiser ton GPU. Lance Cobblestone en rendu logiciel :
+
+```bash
+COBBLESTONE_SOFTWARE_RENDERING=1 ./cobblestone_x.y.z_amd64.AppImage
+```
+
+L'affichage passe alors par le processeur : un peu moins fluide (vue graphe, diagrammes),
+mais fonctionnel. Pour ne pas avoir à le retaper, ajoute la variable à ton lanceur ou à ton
+`~/.profile`. Le problème vient a priori du système et non de l'AppImage : le `.deb` devrait
+être concerné de la même façon. Un noyau et un Mesa plus récents peuvent le corriger
+durablement.
+
 ## 3. L'application démarre vide — c'est normal
 
 Il n'y a aucun contenu au premier lancement. Pour commencer :
