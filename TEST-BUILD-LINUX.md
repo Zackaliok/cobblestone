@@ -45,17 +45,33 @@ Les deux versions partagent le même identifiant applicatif, donc les mêmes don
 Les erreurs sont désormais écrites dans `~/.local/share/local.entreprise.cobblestone/logs/cobblestone.log`
 (joins ce fichier à ton rapport de bug). Lance aussi l'AppImage depuis un terminal pour voir stderr.
 
-Si le crash est natif (`malloc(): unaligned tcache chunk`, erreurs `EGL`/`Iris`/`dri2` — voir
-#18 et #33), il vient du rendu WebKitGTK/Mesa et non de l'application. L'AppImage définit
-déjà `WEBKIT_DISABLE_DMABUF_RENDERER=1` au démarrage. Si cela ne suffit pas, désactive aussi
-la composition de la webview :
+Si le crash est natif (`malloc(): unaligned tcache chunk`, erreurs `EGL`/`Iris` — voir #18),
+il vient du rendu WebKitGTK/Mesa et non de l'application. Essaie de désactiver
+l'accélération graphique de la webview :
 
 ```bash
+WEBKIT_DISABLE_DMABUF_RENDERER=1 ./cobblestone_x.y.z_amd64.AppImage
+# ou, si cela ne suffit pas :
 WEBKIT_DISABLE_COMPOSITING_MODE=1 ./cobblestone_x.y.z_amd64.AppImage
 ```
 
-Tu peux aussi installer le paquet `.deb` : il utilise les bibliothèques graphiques de ton
-système et n'est pas concerné par ce problème. Dis-nous ce qui a fonctionné.
+Dis-nous si l'une de ces variables supprime le crash.
+
+### Fenêtre grise, sans contenu
+
+Si la fenêtre s'ouvre mais reste grise, avec dans le terminal `Could not get intel_device_info`
+ou `failed to create dri2 screen` (voir #33), le pilote Mesa de ton système ne parvient pas à
+initialiser ton GPU. Lance Cobblestone en rendu logiciel :
+
+```bash
+COBBLESTONE_SOFTWARE_RENDERING=1 ./cobblestone_x.y.z_amd64.AppImage
+```
+
+L'affichage passe alors par le processeur : un peu moins fluide (vue graphe, diagrammes),
+mais fonctionnel. Pour ne pas avoir à le retaper, ajoute la variable à ton lanceur ou à ton
+`~/.profile`. Le problème vient a priori du système et non de l'AppImage : le `.deb` devrait
+être concerné de la même façon. Un noyau et un Mesa plus récents peuvent le corriger
+durablement.
 
 ## 3. L'application démarre vide — c'est normal
 
