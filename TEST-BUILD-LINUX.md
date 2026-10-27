@@ -45,6 +45,12 @@ Les deux versions partagent le même identifiant applicatif, donc les mêmes don
 Les erreurs sont désormais écrites dans `~/.local/share/local.entreprise.cobblestone/logs/cobblestone.log`
 (joins ce fichier à ton rapport de bug). Lance aussi l'AppImage depuis un terminal pour voir stderr.
 
+Au lancement qui suit un crash, Cobblestone le signale et propose **Voir le journal** et
+**Signaler le problème** : ce bouton ouvre le formulaire de bug GitHub prérempli avec la version,
+le système et la fin du journal — relis-le avant d'envoyer, il peut contenir des chemins de fichiers.
+Les modifications non enregistrées sont copiées à part environ une seconde après la frappe : leur
+restauration est proposée au même moment.
+
 Si le crash est natif (`malloc(): unaligned tcache chunk`, erreurs `EGL`/`Iris` — voir #18),
 il vient du rendu WebKitGTK/Mesa et non de l'application. Essaie de désactiver
 l'accélération graphique de la webview :

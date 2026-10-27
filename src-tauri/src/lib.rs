@@ -1,12 +1,16 @@
 //! Coquille native de Cobblestone.
 //!
 //! Aucune commande métier n'est exposée ici : le frontend parle directement aux
-//! plugins officiels. C'est un choix, pas un manque — garder le moteur en
+//! plugins officiels. Les seules commandes servent au diagnostic des crashs
+//! (`session.rs`). C'est un choix, pas un manque — garder le moteur en
 //! TypeScript le rend testable sans toolchain Rust, et réduit la surface native
 //! à auditer. Si l'indexation d'un très gros monorepo devenait trop lente, le
 //! parcours de fichiers serait le premier — et sans doute le seul — candidat à
 //! une réécriture en commande Rust.
 
+mod session;
+
+use tauri::{Manager, RunEvent};
 use tauri_plugin_log::{RotationStrategy, Target, TargetKind};
 
 /// Écrit les panics Rust dans le journal avant l'arrêt du processus.
@@ -97,6 +101,22 @@ pub fn run() {
         // qu'à relancer l'application une fois la nouvelle version installée.
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .run(tauri::generate_context!())
-        .expect("erreur au lancement de Cobblestone");
+        .setup(|app| {
+            let previous = session::open(app.handle());
+            app.manage(previous);
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            session::previous_session_crashed,
+            session::read_log_tail,
+            session::reveal_log_file,
+        ])
+        .build(tauri::generate_context!())
+        .expect("erreur au lancement de Cobblestone")
+        .run(|app, event| {
+            // Fermeture normale, y compris le redémarrage après mise à jour.
+            if let RunEvent::Exit = event {
+                session::close(app);
+            }
+        });
 }

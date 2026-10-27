@@ -10,7 +10,11 @@ import { useDocStore } from './store/DocStore';
  * plus les modifications en cours.
  */
 
-const DEBOUNCE_MS = 2000;
+/**
+ * Assez court pour qu'un crash natif — que rien ne permet d'intercepter — ne
+ * coûte que la dernière seconde de frappe.
+ */
+const DEBOUNCE_MS = 1000;
 
 function currentRecovery(): RecoveredDraft | null {
   const { open, draft, persisted } = useDocStore.getState();
@@ -46,8 +50,25 @@ export function startRecoveryAutosave(): () => void {
     }
   });
 
+  // Fenêtre quittée ou masquée : c'est souvent le dernier moment où l'on
+  // garde la main (fermeture, mise en veille, crash du compositeur…).
+  const flushNow = () => {
+    if (!currentRecovery()) return;
+    window.clearTimeout(timer);
+    void flushRecovery();
+  };
+  const onVisibility = () => {
+    if (document.visibilityState === 'hidden') flushNow();
+  };
+  window.addEventListener('blur', flushNow);
+  window.addEventListener('pagehide', flushNow);
+  document.addEventListener('visibilitychange', onVisibility);
+
   return () => {
     window.clearTimeout(timer);
+    window.removeEventListener('blur', flushNow);
+    window.removeEventListener('pagehide', flushNow);
+    document.removeEventListener('visibilitychange', onVisibility);
     unsubscribe();
   };
 }

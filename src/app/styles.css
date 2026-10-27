@@ -1498,6 +1498,15 @@ button {
   margin: 0;
 }
 
+/* Crash à la session précédente : en haut, pour ne pas empiler avec la mise à jour */
+.crash-notice {
+  top: 56px;
+  bottom: auto;
+  left: auto;
+  right: 16px;
+  border-color: var(--danger);
+}
+
 .update-notice__actions {
   display: flex;
   justify-content: flex-end;

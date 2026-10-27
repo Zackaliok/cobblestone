@@ -29,6 +29,7 @@ import {
   type RecoveredDraft,
 } from '../persistence';
 import { isDesktop } from '../platform';
+import { askToLeave } from '../unsavedChanges';
 
 export type EditorView = 'wysiwyg' | 'source' | 'preview' | 'graph' | 'history';
 export type Scope = 'workspace' | 'global';
@@ -289,29 +290,16 @@ export const useDocStore = create<DocState>()((set, get) => ({
   },
 
   async openNote(workspaceId, path) {
-    try {
-      const raw = await manager.readRaw(workspaceId, path);
-      const entry: OpenDocument = { workspaceId, path };
-
-      set((state) => ({
-        open: entry,
-        openImage: null,
-        draft: raw,
-        persisted: raw,
-        conflict: null,
-        activeWorkspaceId: workspaceId,
-        status: null,
-        recents: [
-          entry,
-          ...state.recents.filter(
-            (candidate) =>
-              candidate.workspaceId !== workspaceId || candidate.path !== path,
-          ),
-        ].slice(0, 12),
-      }));
-    } catch (error) {
-      set({ status: { text: `Ouverture impossible : ${describeError(error)}`, tone: 'error' } });
+    const { open } = get();
+    if (open?.workspaceId === workspaceId && open.path === path) {
+      // Déjà ouvert : relire le disque écraserait le brouillon en cours. Les
+      // modifications faites ailleurs passent par `checkExternalChanges`.
+      set({ openImage: null, activeWorkspaceId: workspaceId });
+      return;
     }
+
+    if (!(await confirmLeave(get))) return;
+    await loadNote(set, workspaceId, path);
   },
 
   /**
@@ -357,7 +345,8 @@ export const useDocStore = create<DocState>()((set, get) => ({
     await get().openNote(recovery.workspaceId, recovery.path);
     // `persisted` reste le contenu du disque : le document apparaît modifié
     // et rien n'est écrit tant que l'utilisateur n'enregistre pas.
-    if (get().open?.path === recovery.path) {
+    const { open } = get();
+    if (open?.workspaceId === recovery.workspaceId && open.path === recovery.path) {
       set({ draft: recovery.draft, recovery: null });
     }
   },
@@ -469,10 +458,13 @@ export const useDocStore = create<DocState>()((set, get) => ({
   },
 
   async createNote(workspaceId, path) {
+    // Demander avant de créer : annuler ne doit pas laisser de note vide derrière.
+    if (!(await confirmLeave(get))) return;
+
     try {
       const note = await manager.createNote(workspaceId, path);
       await get().refreshWorkspace(workspaceId);
-      await get().openNote(workspaceId, note.path);
+      await loadNote(set, workspaceId, note.path);
       set({ view: 'wysiwyg' });
     } catch (error) {
       set({ status: { text: describeError(error), tone: 'error' } });
@@ -503,7 +495,15 @@ export const useDocStore = create<DocState>()((set, get) => ({
 
       const { open, openImage } = get();
       if (open?.workspaceId === workspaceId && open.path === from) {
-        await get().openNote(workspaceId, target);
+        // Le contenu n'a pas bougé, seul le chemin change : on garde le
+        // brouillon tel quel plutôt que de le relire depuis le disque.
+        const renamed: OpenDocument = { workspaceId, path: target };
+        set((state) => ({
+          open: renamed,
+          recents: state.recents.map((entry) =>
+            entry.workspaceId === workspaceId && entry.path === from ? renamed : entry,
+          ),
+        }));
       }
       if (openImage?.workspaceId === workspaceId && openImage.path === from) {
         set({ openImage: { workspaceId, path: target } });
@@ -547,6 +547,50 @@ export const useDocStore = create<DocState>()((set, get) => ({
 
 type SetState = (partial: Partial<DocState> | ((state: DocState) => Partial<DocState>)) => void;
 type GetState = () => DocState;
+
+/**
+ * Laisse quitter le document ouvert, après accord si son brouillon est modifié.
+ * `false` : l'utilisateur annule, ou l'enregistrement n'a pas abouti (erreur,
+ * conflit à arbitrer) — le brouillon reste alors ouvert.
+ */
+async function confirmLeave(get: GetState): Promise<boolean> {
+  const { open, draft, persisted } = get();
+  if (!open || draft === persisted) return true;
+
+  const choice = await askToLeave(open.path);
+  if (choice === 'cancel') return false;
+  if (choice === 'discard') return true;
+
+  await get().save();
+  const after = get();
+  return after.open === open && after.draft === after.persisted;
+}
+
+/** Charge une note depuis le disque, sans se soucier du brouillon en cours. */
+async function loadNote(set: SetState, workspaceId: string, path: string): Promise<void> {
+  try {
+    const raw = await manager.readRaw(workspaceId, path);
+    const entry: OpenDocument = { workspaceId, path };
+
+    set((state) => ({
+      open: entry,
+      openImage: null,
+      draft: raw,
+      persisted: raw,
+      conflict: null,
+      activeWorkspaceId: workspaceId,
+      status: null,
+      recents: [
+        entry,
+        ...state.recents.filter(
+          (candidate) => candidate.workspaceId !== workspaceId || candidate.path !== path,
+        ),
+      ].slice(0, 12),
+    }));
+  } catch (error) {
+    set({ status: { text: `Ouverture impossible : ${describeError(error)}`, tone: 'error' } });
+  }
+}
 
 /**
  * Attache un système de fichiers à un workspace et vérifie qu'il répond.

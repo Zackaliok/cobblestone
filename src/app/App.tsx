@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect } from 'react';
 
 import { BottomPanel } from './components/BottomPanel';
 import { ConflictBanner } from './components/ConflictBanner';
+import { CrashNotice } from './components/CrashNotice';
 import { Editor } from './components/Editor';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { HistoryPanel } from './components/HistoryPanel';
@@ -174,6 +175,7 @@ export function App() {
 
       <UpdateNotice />
       <RecoveryNotice />
+      <CrashNotice />
 
       {status && (
         <div className={`toast toast--${status.tone}`} role="status">

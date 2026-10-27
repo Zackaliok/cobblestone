@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 
+import { reportCrash } from '../crashReport';
 import { logError } from '../diagnostics';
 import { flushRecovery } from '../recovery';
 
@@ -54,6 +55,13 @@ export class ErrorBoundary extends Component<Props, State> {
         <div className="crash__actions">
           <button type="button" className="button" onClick={() => this.setState({ error: null })}>
             Réessayer
+          </button>
+          <button
+            type="button"
+            className="button"
+            onClick={() => void reportCrash(`Erreur de l'interface :\n\n${error.stack ?? error.message}`)}
+          >
+            Signaler le problème
           </button>
           <button type="button" className="button button--primary" onClick={() => window.location.reload()}>
             Recharger l'application
