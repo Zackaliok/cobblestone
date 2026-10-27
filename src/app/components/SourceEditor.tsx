@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { activeEmojiQuery, type EmojiEntry } from '../../core/emoji/emoji';
 import { rememberEmoji, useEmojiSuggestions } from '../emoji';
@@ -61,6 +61,16 @@ export function SourceEditor() {
     setHighlighted(0);
     setNavigated(false);
   }, [emojiQuery]);
+
+  // Le texte n'est pas confié à React via `value` : sur un <textarea> contrôlé,
+  // React 18 réécrit aussi `defaultValue` à chaque frappe, ce qui découpe
+  // l'historique natif en étapes d'un caractère (Ctrl+Z n'effaçait qu'une
+  // lettre). Le champ n'est réécrit que si le brouillon change d'ailleurs :
+  // autre note, insertion d'un lien ou d'un émoji, rechargement depuis le disque.
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current;
+    if (textarea && textarea.value !== draft) textarea.value = draft;
+  });
 
   if (!open) return <EmptyState />;
 
@@ -150,7 +160,6 @@ export function SourceEditor() {
       <textarea
         ref={textareaRef}
         className="source-editor__input"
-        value={draft}
         spellCheck={false}
         onChange={(event) => {
           setDraft(event.target.value);
