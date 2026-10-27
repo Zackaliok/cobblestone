@@ -5,7 +5,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
   escapeHeadingIds,
+  escapeMarkdownForMdx,
   findTaskMarkers,
+  isPlainMarkdown,
   rehypeTaskListIndex,
   remarkExtendedMarkdown,
   setTaskChecked,
@@ -115,5 +117,68 @@ describe('listes de tâches', () => {
   it('laisse les variantes en liste ordinaire', () => {
     expect(mdxToBlocks('* [X] un\n* [ ] deux')[0]!.type).toBe('list');
     expect(blocksToMdx(mdxToBlocks('* [X] un\n* [ ] deux'))).toBe('- [X] un\n- [ ] deux\n');
+  });
+});
+
+describe('fichiers .md', () => {
+  const escape = (source: string) => escapeMarkdownForMdx(source, ['Callout', 'WikiLink']);
+
+  it('ne concerne que l’extension .md', () => {
+    expect(isPlainMarkdown('notes/a.md')).toBe(true);
+    expect(isPlainMarkdown('notes/A.MD')).toBe(true);
+    expect(isPlainMarkdown('notes/a.mdx')).toBe(false);
+  });
+
+  it('compile du texte qui ressemble à du JSX (#26)', async () => {
+    const source = '- `isFinished` est un **Observable<boolean>**, pas un simple boolean.';
+    await expect(render(source)).rejects.toThrow();
+
+    const js = await render(escape(source));
+    expect(js).toContain('"Observable<boolean>"');
+  });
+
+  it('échappe `<` et accolades hors code, pas dans le code', () => {
+    expect(escape('a < b, x<3, Map<K, V>, </fin>')).toBe('a \\< b, x\\<3, Map\\<K, V>, \\</fin>');
+    expect(escape('if (x) { y }')).toBe('if (x) \\{ y \\}');
+    expect(escape('`List<T>` et\n\n```ts\nconst a = {};\n```')).toBe(
+      '`List<T>` et\n\n```ts\nconst a = {};\n```',
+    );
+  });
+
+  it('laisse les caractères déjà échappés et les identifiants de titre', () => {
+    expect(escape('\\<b> et \\{x\\}')).toBe('\\<b> et \\{x\\}');
+    expect(escape(escapeHeadingIds('# Titre {#a}'))).toBe('# Titre \\{#a\\}');
+  });
+
+  it('garde le HTML de document et les composants connus', async () => {
+    const source = [
+      'Appuyer sur <kbd>Ctrl</kbd>,<br>puis <img src="a.png" alt="x > y">.',
+      '',
+      '<Callout type="warning">',
+      '  Un **texte** avec Promise<void>',
+      '</Callout>',
+      '',
+      '<WikiLink target="a" label="{b}" />',
+    ].join('\n');
+
+    const escaped = escape(source);
+    expect(escaped).toContain('<kbd>Ctrl</kbd>,<br />puis <img src="a.png" alt="x > y" />.');
+    expect(escaped).toContain('<Callout type="warning">');
+    expect(escaped).toContain('Promise\\<void>');
+    expect(escaped).toContain('<WikiLink target="a" label="{b}" />');
+
+    const js = await render(escaped);
+    expect(js).toContain('_jsx("kbd"');
+    expect(js).toContain('_jsx(Callout');
+    expect(js).toContain('" avec Promise<void>"');
+  });
+
+  it('transforme les commentaires HTML en commentaires MDX', async () => {
+    const escaped = escape('Avant <!-- note */ cachée --> après\n\n<!--\nbloc\n-->');
+    expect(escaped).toBe('Avant {/* note * / cachée */} après\n\n{/*\nbloc\n*/}');
+
+    // Le commentaire reste dans le JavaScript produit, pas dans le rendu.
+    const js = await render(escaped);
+    expect(js).toContain('children: ["Avant ", " après"]');
   });
 });
