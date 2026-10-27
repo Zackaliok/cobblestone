@@ -68,6 +68,7 @@ function SearchResults({ hits }: { hits: ReturnType<typeof useSearch>['hits'] })
           <button
             type="button"
             className="results__item"
+            title={hit.note.path}
             onClick={() => void openNote(hit.note.workspaceId, hit.note.path)}
           >
             <span className="results__title">{hit.note.title}</span>
@@ -144,11 +145,12 @@ function TreeNode({
           style={{ paddingLeft: `${depth * 12 + 8}px` }}
           onClick={() => setExpanded((value) => !value)}
           aria-expanded={expanded}
+          title={entry.name}
         >
           <span className={expanded ? 'chevron is-open' : 'chevron'} aria-hidden="true">
             ▶
           </span>
-          {entry.name}
+          <span className="tree__label">{entry.name}</span>
         </button>
         {expanded && entry.children && (
           <ul>
@@ -178,6 +180,7 @@ function TreeNode({
           type="button"
           className="tree__name"
           style={{ paddingLeft: `${depth * 12 + 20}px` }}
+          title={entry.name}
           onClick={() =>
             image ? openImageFile(workspaceId, entry.path) : void openNote(workspaceId, entry.path)
           }
