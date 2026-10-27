@@ -12,8 +12,10 @@ import { Sidebar } from './components/Sidebar';
 import { UpdateNotice } from './components/UpdateNotice';
 import { WorkspaceTabs } from './components/WorkspaceTabs';
 import { useActiveWorkspace, useIsDirty } from './hooks/useWorkspace';
+import { isLinuxDesktop } from './platform';
 import { useDocStore, type EditorView } from './store/DocStore';
 import { restoreZoom, useZoomStore } from './store/ZoomStore';
+import { isTextField, undoShortcut } from './undo';
 import { zoomShortcut } from './zoom';
 
 // Ces deux vues portent les grosses dépendances — le compilateur MDX pour
@@ -84,6 +86,22 @@ export function App() {
       if (action === 'in') zoom.zoomIn();
       else if (action === 'out') zoom.zoomOut();
       else zoom.reset();
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, []);
+
+  // Annuler / rétablir : WebKitGTK n'associe aucun raccourci à son historique
+  // d'annulation (voir `undo.ts`). En phase de capture, pour la même raison que
+  // le zoom.
+  useEffect(() => {
+    if (!isLinuxDesktop()) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      const action = undoShortcut(event);
+      if (!action || event.isComposing || !isTextField(event.target)) return;
+      event.preventDefault();
+      document.execCommand(action);
     };
     window.addEventListener('keydown', onKeyDown, true);
     return () => window.removeEventListener('keydown', onKeyDown, true);
