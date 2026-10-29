@@ -19,6 +19,8 @@ import remarkGfm from 'remark-gfm';
 import { buildShortcodeIndex, remarkEmojiShortcodes } from '../../core/emoji/emoji';
 import {
   escapeHeadingIds,
+  escapeMarkdownForMdx,
+  isPlainMarkdown,
   rehypeTaskListIndex,
   remarkExtendedMarkdown,
   setTaskChecked,
@@ -79,8 +81,11 @@ export function Preview() {
   const components = useMDXComponentMap();
   const source = useMemo(() => {
     const { content: body } = parseFrontmatter(draft);
-    return replaceWikiLinks(escapeHeadingIds(body));
-  }, [draft]);
+    const mdx = replaceWikiLinks(escapeHeadingIds(body));
+    // Dans un `.md`, `Observable<boolean>` est du texte, pas une balise JSX.
+    if (!open || !isPlainMarkdown(open.path)) return mdx;
+    return escapeMarkdownForMdx(mdx, Object.keys(components));
+  }, [draft, open, components]);
 
   useEffect(() => {
     let cancelled = false;

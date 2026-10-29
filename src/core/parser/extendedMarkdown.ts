@@ -158,3 +158,115 @@ export function setTaskChecked(source: string, index: number, checked: boolean):
   if (!marker || marker.checked === checked) return source;
   return `${source.slice(0, marker.offset)}${checked ? 'x' : ' '}${source.slice(marker.offset + 1)}`;
 }
+
+// ---------------------------------------------------------------------------
+// Fichiers .md
+// ---------------------------------------------------------------------------
+
+/** Un `.md` est du Markdown : le JSX et les expressions n'y ont pas cours. */
+export function isPlainMarkdown(path: string): boolean {
+  return /\.md$/i.test(path);
+}
+
+/** Balises HTML d'un document, laissées telles quelles dans un `.md`. */
+const DOCUMENT_TAGS = new Set([
+  'a', 'abbr', 'address', 'article', 'aside', 'audio', 'b', 'bdi', 'bdo', 'blockquote', 'br',
+  'button', 'caption', 'center', 'cite', 'code', 'col', 'colgroup', 'dd', 'del', 'details', 'dfn',
+  'div', 'dl', 'dt', 'em', 'figcaption', 'figure', 'font', 'footer', 'h1', 'h2', 'h3', 'h4', 'h5',
+  'h6', 'header', 'hr', 'i', 'iframe', 'img', 'input', 'ins', 'kbd', 'label', 'li', 'main', 'mark',
+  'nav', 'ol', 'p', 'picture', 'pre', 'q', 'rp', 'rt', 'ruby', 's', 'samp', 'section', 'small',
+  'source', 'span', 'strike', 'strong', 'sub', 'summary', 'sup', 'table', 'tbody', 'td', 'tfoot',
+  'th', 'thead', 'time', 'tr', 'track', 'tt', 'u', 'ul', 'var', 'video', 'wbr',
+  'svg', 'g', 'path', 'circle', 'ellipse', 'line', 'polyline', 'polygon', 'rect',
+]);
+
+/** Éléments vides : `<br>` est du HTML valide, mais du JSX invalide. */
+const VOID_TAGS = new Set(['br', 'col', 'hr', 'img', 'input', 'source', 'track', 'wbr']);
+
+const TAG_OPENING = /<(\/?)([A-Za-z][\w.-]*)(?=[\s/>])/y;
+const HTML_COMMENT = /<!--([\s\S]*?)-->/y;
+
+/**
+ * Prépare un `.md` pour le compilateur MDX de l'aperçu.
+ *
+ * Un `.md` passe par le même compilateur que les `.mdx` pour garder les
+ * composants (`<Callout>`…) et les wiki-links, mais `<` et `{` y sont du texte :
+ * `Observable<boolean>` ou `if (x) { … }` ne doivent pas faire échouer la
+ * compilation. Hors code, on échappe donc les accolades et tout `<` qui n'ouvre
+ * ni ne ferme une balise HTML de document ou l'un des `components` connus. Les
+ * commentaires HTML deviennent des commentaires MDX, les éléments vides sont
+ * refermés (`<br>` -> `<br />`).
+ */
+export function escapeMarkdownForMdx(source: string, components: Iterable<string>): string {
+  const known = new Set(components);
+  const mask = buildCodeMask(source);
+  let result = '';
+  let index = 0;
+
+  while (index < source.length) {
+    const char = source[index]!;
+    if (mask[index] || isEscaped(source, index) || !'<{}'.includes(char)) {
+      result += char;
+      index += 1;
+      continue;
+    }
+
+    if (char === '<') {
+      HTML_COMMENT.lastIndex = index;
+      const comment = HTML_COMMENT.exec(source);
+      if (comment) {
+        result += `{/*${comment[1]!.replace(/\*\//g, '* /')}*/}`;
+        index = HTML_COMMENT.lastIndex;
+        continue;
+      }
+
+      TAG_OPENING.lastIndex = index;
+      const tag = TAG_OPENING.exec(source);
+      const name = tag?.[2];
+      const kept = name !== undefined && (DOCUMENT_TAGS.has(name) || known.has(name));
+      const end = kept ? findTagEnd(source, TAG_OPENING.lastIndex) : -1;
+      if (tag && end !== -1) {
+        const text = source.slice(index, end + 1);
+        const unclosedVoid = !tag[1] && VOID_TAGS.has(name!) && !text.endsWith('/>');
+        result += unclosedVoid ? `${text.slice(0, -1).trimEnd()} />` : text;
+        index = end + 1;
+        continue;
+      }
+    }
+
+    result += `\\${char}`;
+    index += 1;
+  }
+
+  return result;
+}
+
+/** Position du `>` qui ferme la balise, en sautant chaînes et expressions d'attributs ; -1 si absent. */
+function findTagEnd(source: string, from: number): number {
+  let quote: string | null = null;
+  let depth = 0;
+
+  for (let index = from; index < source.length; index += 1) {
+    const char = source[index]!;
+    if (quote) {
+      if (char === quote) quote = null;
+    } else if (char === '"' || char === "'") {
+      quote = char;
+    } else if (char === '{') {
+      depth += 1;
+    } else if (char === '}') {
+      depth -= 1;
+    } else if (char === '>' && depth === 0) {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
+/** Le caractère est-il précédé d'un nombre impair de `\` ? */
+function isEscaped(source: string, index: number): boolean {
+  let backslashes = 0;
+  while (source[index - 1 - backslashes] === '\\') backslashes += 1;
+  return backslashes % 2 === 1;
+}
