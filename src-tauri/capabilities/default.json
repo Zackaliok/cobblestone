@@ -7,9 +7,13 @@
     "core:default",
     "core:webview:allow-set-webview-zoom",
     "log:default",
-    "opener:allow-open-url",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [{ "url": "https://github.com/Zackaliok/cobblestone/issues/new*" }]
+    },
 
     "dialog:allow-open",
+    "dialog:allow-message",
     "store:default",
 
     "updater:default",
