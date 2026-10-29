@@ -8,6 +8,7 @@
 //! parcours de fichiers serait le premier — et sans doute le seul — candidat à
 //! une réécriture en commande Rust.
 
+mod scope;
 mod session;
 
 use tauri::{Manager, RunEvent};
@@ -102,6 +103,9 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
+            // Les plugins sont initialisés avant `setup` : les autorisations
+            // restaurées par `persisted-scope` sont déjà en place.
+            scope::grant_recursive_access(app.handle());
             let previous = session::open(app.handle());
             app.manage(previous);
             Ok(())
