@@ -10,6 +10,11 @@ export function isDesktop(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
+/** Application desktop sous Linux, donc rendue par WebKitGTK : Tauri n'y a pas d'autre moteur. */
+export function isLinuxDesktop(): boolean {
+  return isDesktop() && /\bLinux\b/.test(navigator.userAgent);
+}
+
 export function assertDesktop(action: string): void {
   if (!isDesktop()) {
     throw new Error(
