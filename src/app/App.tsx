@@ -47,7 +47,9 @@ export function App() {
   }, [initialize]);
 
   // Ctrl+S / Cmd+S : le réflexe de tout le monde, y compris dans un éditeur
-  // qui pourrait sauvegarder tout seul.
+  // qui pourrait sauvegarder tout seul. En phase de capture : les blocs MDX
+  // (tableaux, JSX…) et les champs d'image arrêtent la propagation des touches,
+  // le raccourci doit passer quand même.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
@@ -55,8 +57,8 @@ export function App() {
         void save();
       }
     };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
   }, [save]);
 
   // Comme dans un IDE : en revenant sur la fenêtre, on vérifie que le fichier
