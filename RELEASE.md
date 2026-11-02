@@ -47,6 +47,13 @@ Le workflow construit l'installeur Windows et l'AppImage Linux, crée la release
 et y joint `latest.json`. Les applications installées la proposeront à leur prochain
 lancement.
 
+> **Linux : Debian 13 minimum.** L'AppImage est construite dans Debian 13 (#44), pour que les
+> bibliothèques qu'elle embarque s'accordent avec celles du bureau. Elle demande glibc 2.41 ou
+> plus récente : elle ne démarre plus sur Debian 12 ni sur Ubuntu 24.04 et antérieures. Comme
+> la mise à jour automatique remplace le fichier en place, un poste resté sur l'une de ces
+> distributions se retrouverait avec une application qui ne démarre plus : à vérifier avant de
+> publier.
+
 ## Ce qui se met à jour, et ce qui ne le peut pas
 
 | Format | Mise à jour automatique |
