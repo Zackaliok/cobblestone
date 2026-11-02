@@ -200,6 +200,9 @@ export const useDocStore = create<DocState>()((set, get) => ({
     const { open } = await import('@tauri-apps/plugin-dialog');
     const selected = await open({
       directory: true,
+      // Sans `recursive`, seul le premier niveau du dossier est autorisé :
+      // les notes des sous-dossiers ne se lisent ni ne s'écrivent (#42).
+      recursive: true,
       multiple: false,
       title: 'Choisir un dossier de documentation',
     });
