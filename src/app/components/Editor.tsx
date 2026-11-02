@@ -18,12 +18,26 @@ import { resolveImagePath } from '../../core/filesystem/FileSystem';
 import { ImageTool, type ImageToolConfig } from '../editor/ImageTool';
 import { CalloutTool } from '../editor/CalloutTool';
 import { MdxBlockTool } from '../editor/MdxBlockTool';
+import { TableTool } from '../editor/TableTool';
 import { EmojiAutocomplete } from './EmojiAutocomplete';
 import { useDocStore } from '../store/DocStore';
 import { FrontmatterPanel } from './FrontmatterPanel';
 import { SourceEditor } from './SourceEditor';
 
 const SYNC_DELAY_MS = 300;
+
+/** Libellés des menus de `@editorjs/table`, livrés en anglais. */
+const TABLE_MESSAGES = {
+  Heading: 'En-tête',
+  'With headings': 'Avec en-tête',
+  'Without headings': 'Sans en-tête',
+  'Add column to left': 'Insérer une colonne à gauche',
+  'Add column to right': 'Insérer une colonne à droite',
+  'Delete column': 'Supprimer la colonne',
+  'Add row above': 'Insérer une ligne au-dessus',
+  'Add row below': 'Insérer une ligne en dessous',
+  'Delete row': 'Supprimer la ligne',
+};
 
 /**
  * Éditeur double mode.
@@ -94,8 +108,10 @@ function WysiwygEditor() {
         marker: { class: Marker as never },
         inlineCode: { class: InlineCode as never },
         callout: { class: CalloutTool as never, inlineToolbar: true },
+        table: { class: TableTool as never, inlineToolbar: true },
         mdx: { class: MdxBlockTool as never },
       },
+      i18n: { messages: { tools: { table: TABLE_MESSAGES } } },
       data: toEditorData(initial),
       onChange: () => scheduleSync(),
     });
