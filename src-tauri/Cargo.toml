@@ -37,6 +37,15 @@ serde_json = "1"
 # Fait le lien entre le hook de panic et le plugin de journalisation.
 log = "0.4"
 tauri-plugin-log = "2"
+# Horodatage du journal en heure locale, décalage compris (déjà requis par
+# tauri-plugin-log).
+time = { version = "0.3", features = ["formatting", "macros"] }
+# Dossier de logs calculé avant le démarrage de Tauri, pour y rediriger stderr
+# (`stderr.rs`) : même crate et même règle que `app_log_dir`.
+dirs = "7"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
 
 [profile.release]
 codegen-units = 1

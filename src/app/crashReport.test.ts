@@ -28,4 +28,36 @@ describe('buildIssueUrl', () => {
     expect(logs).toContain('ligne 1999');
     expect(logs).not.toContain('ligne 0\n');
   });
+
+  it('joint la sortie d’erreur native après le journal', () => {
+    const url = buildIssueUrl({
+      ...report,
+      log: 'session::WARN',
+      nativeLog: 'malloc(): unaligned fastbin chunk detected',
+    });
+    const logs = new URL(url).searchParams.get('logs') ?? '';
+
+    expect(logs).toContain('Fin de cobblestone.log');
+    expect(logs).toContain('stderr.previous.log');
+    expect(logs.indexOf('session::WARN')).toBeLessThan(logs.indexOf('malloc()'));
+  });
+
+  it('joint la sortie native même sans journal', () => {
+    const logs =
+      new URL(buildIssueUrl({ ...report, nativeLog: 'Gdk-Message: fatal' })).searchParams.get('logs') ?? '';
+
+    expect(logs).toContain('Gdk-Message: fatal');
+    expect(logs).not.toContain('cobblestone.log');
+  });
+
+  it('garde la fin des deux journaux quand l’ensemble est trop long', () => {
+    const lines = (prefix: string) =>
+      Array.from({ length: 2000 }, (_, index) => `${prefix} ${index}`).join('\n');
+    const url = buildIssueUrl({ ...report, log: lines('journal'), nativeLog: lines('natif') });
+
+    expect(url.length).toBeLessThanOrEqual(7000);
+    const logs = new URL(url).searchParams.get('logs') ?? '';
+    expect(logs).toContain('journal 1999');
+    expect(logs).toContain('natif 1999');
+  });
 });
