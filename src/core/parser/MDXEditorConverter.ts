@@ -7,10 +7,12 @@
  * ouverture, et le diff Git devient illisible.
  *
  * Corollaire assumé : tout ce que le modèle de blocs ne sait pas représenter
- * fidèlement (JSX, tableaux, code avec langage, listes imbriquées) part dans un
- * bloc `mdx` brut plutôt que d'être approximé. Mieux vaut un bloc monospace
- * qu'une conversion destructrice.
+ * fidèlement (JSX, code avec langage, listes imbriquées, tableaux hors forme
+ * GFM) part dans un bloc `mdx` brut plutôt que d'être approximé. Mieux vaut un
+ * bloc monospace qu'une conversion destructrice.
  */
+
+import { buildCodeMask } from './MDXParser';
 
 export type EditorBlock =
   | { type: 'header'; data: { text: string; level: number } }
@@ -21,10 +23,36 @@ export type EditorBlock =
   | { type: 'image'; data: { src: string; alt: string } }
   | { type: 'delimiter'; data: Record<string, never> }
   | { type: 'callout'; data: { type: CalloutType; text: string } }
+  | { type: 'table'; data: TableData }
   | { type: 'mdx'; data: { code: string } };
 
 export const CALLOUT_TYPES = ['info', 'warning', 'danger', 'success'] as const;
 export type CalloutType = (typeof CALLOUT_TYPES)[number];
+
+/** Alignement d'une colonne, lu dans la ligne de séparation (`:---`, `:---:`, `---:`). */
+export type TableAlign = 'left' | 'center' | 'right' | null;
+
+/**
+ * Donnée du bloc tableau, au format de `@editorjs/table` complété de ce que le
+ * Markdown porte en plus.
+ */
+export interface TableData {
+  /**
+   * La première ligne de `content` est l'en-tête. Un tableau GFM en a toujours
+   * une : « sans en-têtes » s'écrit avec une ligne d'en-tête vide.
+   */
+  withHeadings: boolean;
+  /** Cellules en HTML inline, comme le texte des autres blocs. */
+  content: string[][];
+  /** Alignement par colonne ; absent ou plus court : alignement par défaut. */
+  align?: TableAlign[];
+  /**
+   * Lignes Markdown d'origine. Une ligne dont les cellules n'ont pas changé est
+   * réécrite telle quelle : ni le formatage (colonnes alignées, pipes de fin
+   * omis) ni le diff Git ne bougent hors des lignes réellement modifiées.
+   */
+  source?: string[];
+}
 
 export interface EditorDocument {
   blocks: EditorBlock[];
@@ -236,7 +264,10 @@ function consumeTable(lines: string[], start: number, blocks: EditorBlock[]): nu
     index += 1;
   }
 
-  blocks.push({ type: 'mdx', data: { code: collected.join('\n') } });
+  const table = parseTable(collected);
+  blocks.push(
+    table ? { type: 'table', data: table } : { type: 'mdx', data: { code: collected.join('\n') } },
+  );
   return index;
 }
 
@@ -411,6 +442,9 @@ export function blocksToMdx(blocks: EditorBlock[]): string {
         chunks.push([`<Callout type="${type}">`, ...(body.length ? body : ['  ']), '</Callout>'].join('\n'));
         break;
       }
+      case 'table':
+        chunks.push(tableToMarkdown(block.data));
+        break;
       case 'mdx':
         chunks.push(block.data.code);
         break;
@@ -418,6 +452,219 @@ export function blocksToMdx(blocks: EditorBlock[]): string {
   }
 
   return `${chunks.filter((chunk) => chunk.trim() !== '').join('\n\n')}\n`;
+}
+
+// ---------------------------------------------------------------------------
+// Tableaux GFM
+// ---------------------------------------------------------------------------
+
+const DELIMITER_CELL = /^:?-+:?$/;
+const WIKI_LINK = /\[\[[^\][\n]+\]\]/g;
+const BR_TAG = /<br\s*\/?>/gi;
+
+/**
+ * Un tableau ne devient un bloc éditable que s'il est du GFM sans ambiguïté :
+ * lignes non indentées, ligne de séparation valide, autant de colonnes dans
+ * l'en-tête que dans la séparation, aucune ligne plus large que l'en-tête (le
+ * rendu ignorerait les cellules en trop, l'éditeur les afficherait). Le reste
+ * reste en MDX brut.
+ */
+function parseTable(lines: string[]): TableData | null {
+  if (lines.length < 2 || lines.some((line) => !line.startsWith('|'))) return null;
+
+  const [header, delimiter, ...body] = lines.map(splitTableRow);
+  const align = parseDelimiterRow(delimiter!);
+  if (!align || align.length !== header!.length) return null;
+
+  const width = header!.length;
+  if (body.some((row) => row.length > width)) return null;
+
+  // Une ligne d'en-tête vide est l'écriture GFM d'un tableau sans en-tête.
+  const withHeadings = body.length === 0 || header!.some((cell) => cell !== '');
+  const rows = withHeadings ? [header!, ...body] : body;
+
+  return {
+    withHeadings,
+    content: rows.map((row) => padRow(row, width).map(tableCellToHtml)),
+    align,
+    source: lines,
+  };
+}
+
+function tableToMarkdown(data: TableData): string {
+  const rows = data.content.map((row) => row.map(tableCellToMarkdown));
+  const width = Math.max(0, ...rows.map((row) => row.length));
+  // Plus aucune cellule : le tableau a été vidé, il ne produit rien.
+  if (width === 0) return '';
+
+  const cells = rows.map((row) => padRow(row, width));
+  const header = data.withHeadings ? cells[0]! : padRow([], width);
+  const body = data.withHeadings ? cells.slice(1) : cells;
+  const align = Array.from({ length: width }, (_, column) => data.align?.[column] ?? null);
+
+  const original = indexSourceLines(data.source ?? []);
+  const line = (row: string[]): string =>
+    original.rows.get(rowKey(row))?.shift() ?? `| ${row.join(' | ')} |`;
+
+  const delimiter =
+    original.delimiter && sameAlign(original.delimiter.align, align)
+      ? original.delimiter.line
+      : `| ${align.map(delimiterCell).join(' | ')} |`;
+
+  return [line(header), delimiter, ...body.map(line)].join('\n');
+}
+
+/**
+ * Range les lignes d'origine par contenu, tel qu'il ressortirait de l'éditeur
+ * s'il n'y avait pas été touché. Une file par contenu : deux lignes identiques
+ * sont réutilisées chacune une fois.
+ */
+function indexSourceLines(source: string[]): {
+  rows: Map<string, string[]>;
+  delimiter: { line: string; align: TableAlign[] } | null;
+} {
+  const rows = new Map<string, string[]>();
+  if (source.length < 2) return { rows, delimiter: null };
+
+  const align = parseDelimiterRow(splitTableRow(source[1]!));
+  if (!align) return { rows, delimiter: null };
+
+  source.forEach((line, position) => {
+    if (position === 1) return;
+    const cells = padRow(splitTableRow(line), align.length).map((cell) =>
+      tableCellToMarkdown(tableCellToHtml(cell)),
+    );
+    const key = rowKey(cells);
+    rows.set(key, [...(rows.get(key) ?? []), line]);
+  });
+
+  return { rows, delimiter: { line: source[1]!, align } };
+}
+
+/**
+ * Le navigateur rend une espace insécable en `&nbsp;`, que l'aller-retour
+ * inline change en espace simple : la comparaison les confond pour qu'une
+ * ligne non modifiée garde ses insécables.
+ */
+function rowKey(cells: string[]): string {
+  return JSON.stringify(cells.map((cell) => cell.replace(/\u00a0/g, ' ')));
+}
+
+function sameAlign(a: TableAlign[], b: TableAlign[]): boolean {
+  return a.length === b.length && a.every((value, column) => value === b[column]);
+}
+
+function padRow(row: string[], width: number): string[] {
+  return [...row, ...new Array<string>(Math.max(0, width - row.length)).fill('')];
+}
+
+function parseDelimiterRow(cells: string[]): TableAlign[] | null {
+  if (!cells.every((cell) => DELIMITER_CELL.test(cell))) return null;
+  return cells.map((cell) => {
+    const left = cell.startsWith(':');
+    const right = cell.endsWith(':');
+    if (left && right) return 'center';
+    if (left) return 'left';
+    return right ? 'right' : null;
+  });
+}
+
+function delimiterCell(align: TableAlign): string {
+  if (align === 'center') return ':---:';
+  if (align === 'left') return ':---';
+  return align === 'right' ? '---:' : '---';
+}
+
+/**
+ * Découpe une ligne `| a | b |` en cellules, comme GFM : un `|` échappé (`\|`)
+ * reste dans la cellule, le pipe final est facultatif.
+ *
+ * Un wiki-link `[[page|libellé]]` est d'un seul tenant : l'aperçu le remplace
+ * avant que le tableau ne soit analysé, son `|` n'y sépare donc rien.
+ */
+function splitTableRow(line: string): string[] {
+  const text = line.trim();
+  const links = wikiLinkSpans(text);
+  const cells: string[] = [];
+  let cell = '';
+  let closed = false;
+  let index = 1; // le `|` d'ouverture
+
+  while (index < text.length) {
+    const linkEnd = links.get(index);
+    const char = text[index]!;
+    closed = false;
+
+    if (linkEnd !== undefined) {
+      cell += text.slice(index, linkEnd);
+      index = linkEnd;
+    } else if (char === '\\' && index + 1 < text.length) {
+      cell += text.slice(index, index + 2);
+      index += 2;
+    } else if (char === '|') {
+      cells.push(cell.trim());
+      cell = '';
+      closed = true;
+      index += 1;
+    } else {
+      cell += char;
+      index += 1;
+    }
+  }
+
+  if (!closed) cells.push(cell.trim());
+  return cells;
+}
+
+/** Début -> fin des wiki-links situés hors du code. */
+function wikiLinkSpans(text: string): Map<number, number> {
+  const mask = buildCodeMask(text);
+  const spans = new Map<number, number>();
+  for (const match of text.matchAll(WIKI_LINK)) {
+    if (!mask[match.index]) spans.set(match.index, match.index + match[0].length);
+  }
+  return spans;
+}
+
+/**
+ * Applique `replace` à chaque caractère hors wiki-link, les échappements `\x`
+ * étant lus d'un bloc : `\\|` est une barre oblique échappée suivie d'un pipe.
+ */
+function mapTableText(text: string, replace: (token: string) => string): string {
+  const links = wikiLinkSpans(text);
+  let result = '';
+  let index = 0;
+
+  while (index < text.length) {
+    const linkEnd = links.get(index);
+    if (linkEnd !== undefined) {
+      result += text.slice(index, linkEnd);
+      index = linkEnd;
+      continue;
+    }
+    const length = text[index] === '\\' && index + 1 < text.length ? 2 : 1;
+    result += replace(text.slice(index, index + length));
+    index += length;
+  }
+
+  return result;
+}
+
+/**
+ * Cellule Markdown -> HTML de l'éditeur. Le `\|` imposé par la syntaxe des
+ * tableaux s'affiche en simple `|`, et un `<br>` (seule façon d'aller à la
+ * ligne dans une cellule) en vrai saut de ligne.
+ */
+function tableCellToHtml(cell: string): string {
+  const text = mapTableText(cell, (token) => (token === '\\|' ? '|' : token));
+  const mask = buildCodeMask(text);
+  return markdownToHtml(text.replace(BR_TAG, (tag, offset: number) => (mask[offset] ? tag : '\n')));
+}
+
+/** Inverse de `tableCellToHtml` : tout ce qui casserait la ligne est échappé. */
+function tableCellToMarkdown(html: string): string {
+  const markdown = htmlToMarkdown(html).trim();
+  return mapTableText(markdown, (token) => (token === '|' ? '\\|' : token)).replace(/\s*\n\s*/g, '<br />');
 }
 
 // ---------------------------------------------------------------------------
