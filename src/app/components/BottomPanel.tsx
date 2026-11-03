@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { backlinks, orphanNodes, outgoingLinks } from '../../core/graph/KnowledgeGraph';
 import type { GraphNode } from '../../core/graph/types';
 import { noteId } from '../../core/workspace/types';
+import { loadBottomPanelCollapsed, saveBottomPanelCollapsed } from '../bottomPanel';
 import { useOpenNote } from '../hooks/useWorkspace';
 import { useDocStore } from '../store/DocStore';
 import { ZoomControl } from './ZoomControl';
@@ -15,10 +16,23 @@ type Tab = 'backlinks' | 'orphans' | 'recents';
  *
  * Les orphelines sont la contrepartie utile du graphe : dans un wiki qui grossit,
  * ce sont elles qui se perdent.
+ *
+ * Replié par défaut, il retient ensuite le choix de l'utilisateur.
  */
 export function BottomPanel() {
   const [tab, setTab] = useState<Tab>('backlinks');
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsedState] = useState(() => loadBottomPanelCollapsed());
+
+  const setCollapsed = (value: boolean) => {
+    setCollapsedState(value);
+    saveBottomPanelCollapsed(value);
+  };
+
+  // Un onglet cliqué panneau replié doit montrer son contenu : on déplie.
+  const showTab = (next: Tab) => {
+    setTab(next);
+    if (collapsed) setCollapsed(false);
+  };
 
   const graph = useDocStore((state) => state.graph);
   const recents = useDocStore((state) => state.recents);
@@ -54,21 +68,21 @@ export function BottomPanel() {
           <button
             type="button"
             className={tab === 'backlinks' ? 'is-active' : ''}
-            onClick={() => setTab('backlinks')}
+            onClick={() => showTab('backlinks')}
           >
             Liens ({incoming.length}/{outgoing.length})
           </button>
           <button
             type="button"
             className={tab === 'orphans' ? 'is-active' : ''}
-            onClick={() => setTab('orphans')}
+            onClick={() => showTab('orphans')}
           >
             Orphelines ({orphans.length})
           </button>
           <button
             type="button"
             className={tab === 'recents' ? 'is-active' : ''}
-            onClick={() => setTab('recents')}
+            onClick={() => showTab('recents')}
           >
             Récents
           </button>
@@ -77,7 +91,8 @@ export function BottomPanel() {
         <button
           type="button"
           className="bottom-panel__collapse"
-          onClick={() => setCollapsed((value) => !value)}
+          onClick={() => setCollapsed(!collapsed)}
+          aria-expanded={!collapsed}
           aria-label={collapsed ? 'Déplier le panneau' : 'Replier le panneau'}
         >
           {collapsed ? '▲' : '▼'}
