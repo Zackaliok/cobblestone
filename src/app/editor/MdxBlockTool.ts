@@ -9,14 +9,13 @@ const svg = (path: string): string =>
 const ICON_CODE = svg('<path d="M5.5 3 1.5 7.5 5.5 12M11.5 3l4 4.5-4 4.5"/>');
 const ICON_CHEVRON = svg('<path d="M4 5.5 8.5 10l4.5-4.5"/>');
 const ICON_DIAGRAM = svg('<rect x="1.5" y="1.5" width="5" height="4" rx="1"/><rect x="10.5" y="9.5" width="5" height="4" rx="1"/><path d="M4 5.5v5.5h6.5"/>');
-const ICON_TABLE = svg('<rect x="1.5" y="2.5" width="14" height="10" rx="1"/><path d="M1.5 6h14M6.5 6v6.5"/>');
 
 /**
  * Bloc Editor.js pour du MDX brut.
  *
  * C'est la soupape du convertisseur : tout ce que le modèle de blocs ne sait
- * pas représenter fidèlement — JSX (`<Callout>`), tableaux, blocs de code avec
- * langage, listes imbriquées — atterrit ici, verbatim.
+ * pas représenter fidèlement — JSX (`<Accordion>`), blocs de code avec langage,
+ * listes imbriquées, tableaux hors forme GFM — atterrit ici, verbatim.
  *
  * Le tool officiel `@editorjs/code` a été écarté pour cette raison : sa donnée
  * se réduit à `{ code }`, donc le langage d'une fence ```` ```ts ```` serait
@@ -67,11 +66,6 @@ export class MdxBlockTool implements BlockTool {
         title: 'Diagramme Mermaid',
         icon: ICON_DIAGRAM,
         data: { code: '```mermaid\nflowchart LR\n  A[Début] --> B{Choix}\n  B -->|Oui| C[Fin]\n  B -->|Non| A\n```' },
-      },
-      {
-        title: 'Tableau',
-        icon: ICON_TABLE,
-        data: { code: '| Colonne | Colonne |\n|---|---|\n|  |  |' },
       },
     ];
   }

@@ -21,6 +21,7 @@
     "@editorjs/list": "^1.10.0",
     "@editorjs/marker": "^1.4.0",
     "@editorjs/quote": "^2.6.0",
+    "@editorjs/table": "^2.4.6",
     "@mdx-js/mdx": "^3.0.1",
     "@mdx-js/react": "^3.0.1",
     "@tauri-apps/api": "^2.0.0",

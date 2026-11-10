@@ -1602,6 +1602,11 @@ button {
   background: var(--bg-raised);
   border: 1px solid var(--border-strong);
   color: var(--text);
+  /* Depuis Editor.js 2.30, la boîte visible est `.ce-popover__container`,
+     peinte par ces variables : sans elles, le menu reste blanc. */
+  --color-background: var(--bg-raised);
+  --color-border: var(--border-strong);
+  --color-text-secondary: var(--text-dim);
   --color-background-item-hover: var(--accent-soft);
   --color-text-primary: var(--text);
   --color-background-item-focus: var(--accent-soft);
@@ -1706,6 +1711,43 @@ button {
   font-size: 0.9em;
   font-weight: inherit;
   letter-spacing: normal;
+}
+
+/* Tableau : `@editorjs/table` injecte lui aussi un thème clair après cette
+   feuille, à travers des variables. On les redéfinit, qualifiées par le
+   conteneur de l'éditeur pour l'emporter. */
+.codex-editor .tc-wrap {
+  --color-background: var(--bg-raised);
+  --color-text-secondary: var(--text-faint);
+  --color-border: var(--border-strong);
+}
+
+.codex-editor .tc-toolbox {
+  --toggler-dots-color: var(--text-faint);
+  --toggler-dots-color-hovered: var(--text);
+  /* Au-dessus de la ligne d'en-tête (`z-index: 2`), qui masquerait le menu. */
+  z-index: 3;
+}
+
+.codex-editor .tc-popover {
+  --color-border: var(--border-strong);
+  --color-background: var(--bg-raised);
+  --color-background-hover: var(--accent-soft);
+  --color-background-confirm: var(--danger);
+  --color-background-confirm-hover: #e5627b;
+  --color-text-confirm: var(--bg);
+  color: var(--text);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+}
+
+.codex-editor .tc-row--selected,
+.codex-editor .tc-row--selected::after,
+.codex-editor .tc-cell--selected {
+  background: var(--accent-soft);
+}
+
+.codex-editor .tc-cell {
+  line-height: 1.5;
 }
 
 /* Erreur de rendu et brouillon de secours */
