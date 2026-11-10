@@ -351,6 +351,39 @@ function consumeParagraph(lines: string[], start: number, blocks: EditorBlock[])
 }
 
 // ---------------------------------------------------------------------------
+// Diagrammes Mermaid
+// ---------------------------------------------------------------------------
+
+/** Ouverture ```` ```mermaid ```` : le langage est le premier mot de l'info string. */
+const MERMAID_FENCE_OPEN = /^(`{3,}|~{3,})[ \t]*mermaid(?:[ \t].*)?$/;
+const FENCE_CLOSE = /^ {0,3}(`{3,}|~{3,})[ \t]*$/;
+
+/**
+ * Source du diagramme d'un bloc `mdx` qui ne contient qu'un bloc
+ * ```` ```mermaid ````, sinon `null`. Une fence pas encore refermée compte :
+ * le bloc reste reconnu pendant qu'on la tape.
+ */
+export function mermaidFenceSource(code: string): string | null {
+  const [first = '', ...lines] = code.replace(/\r\n/g, '\n').split('\n');
+  const open = MERMAID_FENCE_OPEN.exec(first);
+  if (!open) return null;
+
+  const fence = open[1]!;
+  // Après des backticks, l'info string ne peut pas en contenir (CommonMark).
+  if (fence.startsWith('`') && first.slice(fence.length).includes('`')) return null;
+
+  const closing = lines.findIndex((line) => {
+    const match = FENCE_CLOSE.exec(line);
+    return match !== null && match[1]![0] === fence[0] && match[1]!.length >= fence.length;
+  });
+  if (closing === -1) return lines.join('\n');
+
+  // Du contenu après la fence : le bloc n'est pas qu'un diagramme.
+  if (lines.slice(closing + 1).some((line) => line.trim() !== '')) return null;
+  return lines.slice(0, closing).join('\n');
+}
+
+// ---------------------------------------------------------------------------
 // Blocs -> MDX
 // ---------------------------------------------------------------------------
 
