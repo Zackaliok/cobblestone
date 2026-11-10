@@ -11,6 +11,8 @@ const NEW_ISSUE_URL = 'https://github.com/Zackaliok/cobblestone/issues/new';
 /** Les navigateurs et GitHub tronquent ou refusent au-delà de ~8 000 caractères. */
 const MAX_URL_LENGTH = 7000;
 const LOG_LINES = 60;
+/** La cause d'un crash natif tient dans les dernières lignes ; le début n'est que bruit de démarrage. */
+const NATIVE_LOG_LINES = 25;
 
 export interface CrashReport {
   /** Ce que l'on sait de l'erreur ; vide pour un crash natif constaté après coup. */
@@ -19,9 +21,18 @@ export interface CrashReport {
   os: string;
   /** Fin du journal de l'application, éventuellement vide. */
   log: string;
+  /**
+   * Fin de la sortie d'erreur native de la session interrompue : c'est là que
+   * la glibc, GTK ou WebKit laissent la cause d'un crash natif (#44).
+   */
+  nativeLog?: string;
 }
 
-function issueUrl(report: CrashReport, log: string): string {
+function codeSection(title: string, lines: string[]): string | null {
+  return lines.length > 0 ? `${title} :\n\n\`\`\`\n${lines.join('\n')}\n\`\`\`` : null;
+}
+
+function issueUrl(report: CrashReport, log: string[], nativeLog: string[]): string {
   const params = new URLSearchParams({
     template: '1-bug.yml',
     title: 'Crash : ',
@@ -29,17 +40,30 @@ function issueUrl(report: CrashReport, log: string): string {
     version: report.version,
     os: report.os,
   });
-  if (log) params.set('logs', `Fin de cobblestone.log :\n\n\`\`\`\n${log}\n\`\`\``);
+  const sections = [
+    codeSection('Fin de cobblestone.log', log),
+    codeSection("Sortie d'erreur de la session interrompue (stderr.previous.log)", nativeLog),
+  ].filter((section): section is string => section !== null);
+  if (sections.length > 0) params.set('logs', sections.join('\n\n'));
   return `${NEW_ISSUE_URL}?${params.toString()}`;
 }
 
-/** URL du formulaire prérempli ; le journal est raccourci par le début s'il le faut. */
+function splitLines(text: string | undefined): string[] {
+  return text ? text.split('\n') : [];
+}
+
+/**
+ * URL du formulaire prérempli. Si elle est trop longue, les journaux sont
+ * raccourcis par le début, le plus long d'abord : leur fin, la plus proche du
+ * crash, est ce qui compte.
+ */
 export function buildIssueUrl(report: CrashReport): string {
-  const lines = report.log.split('\n');
-  let url = issueUrl(report, report.log);
-  while (url.length > MAX_URL_LENGTH && lines.length > 0) {
-    lines.shift();
-    url = issueUrl(report, lines.join('\n'));
+  const log = splitLines(report.log);
+  const nativeLog = splitLines(report.nativeLog);
+  let url = issueUrl(report, log, nativeLog);
+  while (url.length > MAX_URL_LENGTH && log.length + nativeLog.length > 0) {
+    (log.length >= nativeLog.length ? log : nativeLog).shift();
+    url = issueUrl(report, log, nativeLog);
   }
   return url;
 }
@@ -53,22 +77,30 @@ async function appVersion(): Promise<string> {
   }
 }
 
-async function logTail(): Promise<string> {
+async function readTail(command: string, lines: number): Promise<string> {
   if (!isDesktop()) return '';
   try {
     const { invoke } = await import('@tauri-apps/api/core');
-    return await invoke<string>('read_log_tail', { lines: LOG_LINES });
+    return await invoke<string>(command, { lines });
   } catch {
     return '';
   }
 }
 
-export async function reportCrash(description: string): Promise<void> {
+interface ReportOptions {
+  /** Le crash a eu lieu à la session précédente : joindre sa sortie native. */
+  previousSession?: boolean;
+}
+
+export async function reportCrash(description: string, options: ReportOptions = {}): Promise<void> {
   const url = buildIssueUrl({
     description,
     version: await appVersion(),
     os: navigator.userAgent,
-    log: await logTail(),
+    log: await readTail('read_log_tail', LOG_LINES),
+    nativeLog: options.previousSession
+      ? await readTail('read_previous_stderr_tail', NATIVE_LOG_LINES)
+      : undefined,
   });
 
   try {

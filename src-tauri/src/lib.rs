@@ -2,7 +2,7 @@
 //!
 //! Aucune commande métier n'est exposée ici : le frontend parle directement aux
 //! plugins officiels. Les seules commandes servent au diagnostic des crashs
-//! (`session.rs`). C'est un choix, pas un manque — garder le moteur en
+//! (`session.rs`, `stderr.rs`). C'est un choix, pas un manque — garder le moteur en
 //! TypeScript le rend testable sans toolchain Rust, et réduit la surface native
 //! à auditer. Si l'indexation d'un très gros monorepo devenait trop lente, le
 //! parcours de fichiers serait le premier — et sans doute le seul — candidat à
@@ -10,9 +10,26 @@
 
 mod scope;
 mod session;
+mod stderr;
 
 use tauri::{Manager, RunEvent};
-use tauri_plugin_log::{RotationStrategy, Target, TargetKind};
+use tauri_plugin_log::{RotationStrategy, Target, TargetKind, TimezoneStrategy};
+
+/// Horodatage du journal : heure locale, avec son décalage.
+///
+/// Le format par défaut de `tauri-plugin-log` est en UTC sans le dire : face au
+/// journal système, en heure locale, l'écart d'une heure a déjà fait chercher
+/// un crash au mauvais endroit (#44). Le décalage explicite lève l'ambiguïté,
+/// changement d'heure compris.
+pub(crate) fn timestamp() -> String {
+    let format = time::macros::format_description!(
+        "[[[year]-[month]-[day]][[[hour]:[minute]:[second][offset_hour sign:mandatory]:[offset_minute]]"
+    );
+    TimezoneStrategy::UseLocal
+        .get_now()
+        .format(&format)
+        .unwrap_or_default()
+}
 
 /// Écrit les panics Rust dans le journal avant l'arrêt du processus.
 ///
@@ -65,6 +82,13 @@ fn configure_software_rendering() {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let context = tauri::generate_context!();
+    // Avant tout le reste : GTK et WebKit écrivent sur stderr dès leur
+    // initialisation, et leurs sous-processus héritent du descripteur.
+    let captured_stderr = stderr::capture(
+        &context.config().identifier,
+        context.config().version.as_deref().unwrap_or("inconnue"),
+    );
     #[cfg(target_os = "linux")]
     configure_software_rendering();
     install_panic_hook();
@@ -85,6 +109,18 @@ pub fn run() {
                 .level(log::LevelFilter::Info)
                 .max_file_size(1_000_000)
                 .rotation_strategy(RotationStrategy::KeepOne)
+                // `timezone_strategy` impose son propre format : `format` doit
+                // venir après.
+                .timezone_strategy(TimezoneStrategy::UseLocal)
+                .format(|out, message, record| {
+                    out.finish(format_args!(
+                        "{}[{}][{}] {}",
+                        timestamp(),
+                        record.target(),
+                        record.level(),
+                        message
+                    ))
+                })
                 .build(),
         )
         .plugin(tauri_plugin_opener::init())
@@ -102,7 +138,8 @@ pub fn run() {
         // qu'à relancer l'application une fois la nouvelle version installée.
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .setup(|app| {
+        .setup(move |app| {
+            stderr::report(app.handle(), captured_stderr.as_ref());
             // Les plugins sont initialisés avant `setup` : les autorisations
             // restaurées par `persisted-scope` sont déjà en place.
             scope::grant_recursive_access(app.handle());
@@ -114,8 +151,9 @@ pub fn run() {
             session::previous_session_crashed,
             session::read_log_tail,
             session::reveal_log_file,
+            stderr::read_previous_stderr_tail,
         ])
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("erreur au lancement de Cobblestone")
         .run(|app, event| {
             // Fermeture normale, y compris le redémarrage après mise à jour.

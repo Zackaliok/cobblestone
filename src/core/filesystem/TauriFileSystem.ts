@@ -22,9 +22,13 @@ import {
   normalizeRelativePath,
   sortEntries,
 } from './FileSystem';
+import { changesWorkspace } from './watchEvents';
 
 /** Garde-fou contre les arborescences pathologiques d'un gros monorepo. */
 const MAX_DEPTH = 12;
+
+/** Fenêtre de regroupement des évènements d'un même lot du watcher. */
+const BURST_MS = 50;
 
 /**
  * Implémentation locale, adossée à `@tauri-apps/plugin-fs`.
@@ -170,15 +174,29 @@ export class TauriFileSystem implements FileSystem {
    * Surveille la racine du workspace. Utile quand la doc est aussi éditée
    * depuis un IDE : l'arbre et le graph se resynchronisent tout seuls.
    *
+   * Seuls les évènements qui peuvent changer un scan sont transmis : les
+   * lectures, y compris celles du scan lui-même, relançaient sinon un scan sans
+   * fin (voir `changesWorkspace`, #44).
+   *
    * Les évènements sont regroupés (`delayMs`) parce qu'une seule sauvegarde
-   * d'éditeur en produit souvent plusieurs.
+   * d'éditeur en produit souvent plusieurs. Le plugin les livre ensuite un par
+   * un : ceux d'un même lot n'appellent `onChange` qu'une fois.
    */
   async watch(onChange: () => void): Promise<() => void> {
-    const unwatch = await watch(this.root, () => onChange(), {
-      recursive: true,
-      delayMs: 400,
-    });
+    let pending: ReturnType<typeof setTimeout> | undefined;
+    const unwatch = await watch(
+      this.root,
+      (event) => {
+        if (pending !== undefined || !changesWorkspace(event, this.root)) return;
+        pending = setTimeout(() => {
+          pending = undefined;
+          onChange();
+        }, BURST_MS);
+      },
+      { recursive: true, delayMs: 400 },
+    );
     return () => {
+      clearTimeout(pending);
       void unwatch();
     };
   }

@@ -7,12 +7,51 @@ on:
 
 jobs:
   build:
-    name: Paquet .deb + AppImage
-    # Ubuntu 22.04 plutôt que -latest : une glibc plus ancienne donne un binaire
-    # compatible avec plus de distributions Debian/Ubuntu en aval.
-    runs-on: ubuntu-22.04
+    name: Paquet .deb + AppImage (Debian 13)
+    runs-on: ubuntu-24.04
+    # Construit DANS Debian 13 : l'AppImage embarque les bibliothèques du système
+    # de build (GLib, GTK, WebKitGTK, pont d'accessibilité), mais charge aussi des
+    # modules du système hôte. Construite sur Ubuntu 22.04, elle mêlait une GLib
+    # 2.72 aux modules GIO de Debian 13 (2.84) : modules refusés, accessibilité
+    # désaccordée, crash natif à l'ouverture de Fichiers (#44). Contrepartie
+    # assumée : glibc 2.41 minimum, donc plus de Debian 12 ni d'Ubuntu 24.04.
+    container:
+      image: debian:trixie
+      # Le test de démarrage fait tourner WebKitGTK : les 64 Mo de /dev/shm
+      # accordés par défaut aux conteneurs sont trop justes pour un navigateur.
+      options: --shm-size=1g
+    env:
+      # linuxdeploy est lui-même une AppImage : sans FUSE dans le conteneur, il
+      # s'extrait pour s'exécuter. Même chose pour le test de démarrage.
+      APPIMAGE_EXTRACT_AND_RUN: 1
+      # Le `strip` embarqué par linuxdeploy est trop ancien pour certaines
+      # bibliothèques récentes. Celles de Debian sont déjà épurées, et le binaire
+      # l'est par Cargo (`strip = true`) : rien à gagner, un échec à risquer.
+      NO_STRIP: true
 
     steps:
+      # Avant le checkout : sans git dans le conteneur, actions/checkout se
+      # rabat sur une archive sans historique.
+      - name: Installer les dépendances système Tauri
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates \
+            curl \
+            wget \
+            git \
+            xz-utils \
+            file \
+            pkg-config \
+            build-essential \
+            patchelf \
+            xdg-utils \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libxdo-dev
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
@@ -28,21 +67,6 @@ jobs:
         with:
           workspaces: src-tauri
 
-      - name: Installer les dépendances système Tauri
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            libssl-dev \
-            libxdo-dev \
-            patchelf \
-            file \
-            build-essential \
-            curl \
-            wget
-
       - name: Installer les dépendances
         run: npm ci
 
@@ -55,13 +79,23 @@ jobs:
       - name: Build Tauri
         run: npm run tauri build
 
+      # Lance l'AppImage au milieu des composants d'un bureau Debian 13 (gvfs,
+      # dconf, AT-SPI) : un désaccord de bibliothèques comme celui de #44 fait
+      # échouer le build au lieu de partir chez les testeurs.
+      - name: Test de démarrage de l'AppImage
+        run: |
+          apt-get install -y --no-install-recommends \
+            xvfb xauth dbus dbus-x11 at-spi2-core gvfs dconf-gsettings-backend
+          appimage=$(find src-tauri/target/release/bundle/appimage -name '*.AppImage' | head -n1)
+          scripts/smoke-test-appimage.sh "$appimage"
+
       - name: Récapitulatif
         run: |
           bundle=src-tauri/target/release/bundle
           deb=$(find "$bundle/deb" -name '*.deb' | head -n1)
           appimage=$(find "$bundle/appimage" -name '*.AppImage' | head -n1)
           {
-            echo "### Build de test"
+            echo "### Build de test (Debian 13)"
             echo "- Paquet .deb : \`$(basename "$deb")\` ($(du -h "$deb" | cut -f1))"
             echo "- AppImage : \`$(basename "$appimage")\` ($(du -h "$appimage" | cut -f1))"
             echo "- Commit : \`$GITHUB_SHA\`"
