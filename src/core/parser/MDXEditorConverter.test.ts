@@ -5,6 +5,7 @@ import {
   htmlToMarkdown,
   markdownToHtml,
   mdxToBlocks,
+  mermaidFenceSource,
   type EditorBlock,
   type TableData,
 } from './MDXEditorConverter';
@@ -291,5 +292,39 @@ describe('inline markdown <-> html', () => {
 
   it('déplie les imbrications', () => {
     expect(htmlToMarkdown('<b><i>les deux</i></b>')).toBe('***les deux***');
+  });
+});
+
+describe('mermaidFenceSource', () => {
+  it('extrait le diagramme d\'un bloc ```mermaid', () => {
+    expect(mermaidFenceSource('```mermaid\nflowchart LR\n  A --> B\n```')).toBe(
+      'flowchart LR\n  A --> B',
+    );
+  });
+
+  it('accepte les tildes, une info string et les fins de ligne Windows', () => {
+    expect(mermaidFenceSource('~~~mermaid\npie\n~~~')).toBe('pie');
+    expect(mermaidFenceSource('``` mermaid title="Flux"\npie\n```')).toBe('pie');
+    expect(mermaidFenceSource('```mermaid\r\npie\r\n```\r\n')).toBe('pie');
+  });
+
+  it('ignore les autres langages', () => {
+    expect(mermaidFenceSource('```ts\nconst a = 1;\n```')).toBeNull();
+    expect(mermaidFenceSource('```mermaidjs\npie\n```')).toBeNull();
+    expect(mermaidFenceSource('```mermaid `x`\npie\n```')).toBeNull();
+    expect(mermaidFenceSource('<Callout>\n```mermaid\npie\n```\n</Callout>')).toBeNull();
+  });
+
+  it('ignore un bloc qui contient autre chose que le diagramme', () => {
+    expect(mermaidFenceSource('```mermaid\npie\n```\n\nTexte')).toBeNull();
+  });
+
+  it('ne referme la fence que sur le même délimiteur, au moins aussi long', () => {
+    expect(mermaidFenceSource('````mermaid\npie\n```\n~~~~\n````')).toBe('pie\n```\n~~~~');
+  });
+
+  it('reconnaît une fence pas encore refermée', () => {
+    expect(mermaidFenceSource('```mermaid\nflowchart LR')).toBe('flowchart LR');
+    expect(mermaidFenceSource('```mermaid')).toBe('');
   });
 });

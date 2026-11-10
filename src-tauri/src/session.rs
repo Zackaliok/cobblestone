@@ -8,7 +8,7 @@
 //! Limite connue : deux instances lancées en même temps partagent le marqueur,
 //! la seconde croira à un crash. Sans gravité — l'avertissement s'ignore.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use tauri::{AppHandle, Manager, Runtime, State};
 use tauri_plugin_opener::OpenerExt;
@@ -56,8 +56,18 @@ pub fn close<R: Runtime>(app: &AppHandle<R>) {
     }
 }
 
-fn log_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
+pub(crate) fn log_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
     app.path().app_log_dir().map_err(|error| error.to_string())
+}
+
+/// Dernières lignes d'un fichier texte, plafonnées à `MAX_TAIL_LINES`.
+pub(crate) fn read_tail(path: &Path, lines: usize) -> Result<String, String> {
+    let content = std::fs::read(path).map_err(|error| error.to_string())?;
+    let content = String::from_utf8_lossy(&content);
+
+    let all: Vec<&str> = content.lines().collect();
+    let start = all.len().saturating_sub(lines.min(MAX_TAIL_LINES));
+    Ok(all[start..].join("\n"))
 }
 
 #[tauri::command]
@@ -68,13 +78,7 @@ pub fn previous_session_crashed(state: State<'_, PreviousSession>) -> bool {
 /// Dernières lignes du journal, à joindre à un rapport de bug.
 #[tauri::command]
 pub fn read_log_tail<R: Runtime>(app: AppHandle<R>, lines: usize) -> Result<String, String> {
-    let path = log_dir(&app)?.join(LOG_FILE);
-    let content = std::fs::read(&path).map_err(|error| error.to_string())?;
-    let content = String::from_utf8_lossy(&content);
-
-    let all: Vec<&str> = content.lines().collect();
-    let start = all.len().saturating_sub(lines.min(MAX_TAIL_LINES));
-    Ok(all[start..].join("\n"))
+    read_tail(&log_dir(&app)?.join(LOG_FILE), lines)
 }
 
 /// Montre le fichier de journal dans le gestionnaire de fichiers.

@@ -13,6 +13,11 @@ l'installation : c'est attendu à ce stade, rien à contourner.
 
 ## 2. Deux façons de lancer l'application
 
+Les deux sont construites sous **Debian 13 (trixie)** et demandent une distribution au moins
+aussi récente (glibc 2.41) : Debian 12 et Ubuntu 24.04 ne sont plus prises en charge. Une
+AppImage embarque ses bibliothèques mais charge aussi des modules du système ; construite sur
+une base plus ancienne, elle entrait en conflit avec ceux de Debian 13 (#44).
+
 | | Paquet .deb | AppImage |
 |---|---|---|
 | Fichier | `cobblestone_x.y.z_amd64.deb` | `cobblestone_x.y.z_amd64.AppImage` |
@@ -33,27 +38,35 @@ chmod +x cobblestone_x.y.z_amd64.AppImage
 ./cobblestone_x.y.z_amd64.AppImage
 ```
 
-> Si l'AppImage refuse de se lancer avec une erreur liée à FUSE, installe `libfuse2`
-> (`sudo apt install libfuse2`) — requis par les AppImages sur les distributions récentes
-> qui ne l'embarquent plus par défaut.
+> Si l'AppImage refuse de se lancer avec une erreur liée à FUSE, installe `libfuse2t64`
+> (`sudo apt install libfuse2t64`) — requis par certaines AppImages sur les distributions
+> récentes qui ne l'embarquent plus par défaut.
 
 Les deux versions partagent le même identifiant applicatif, donc les mêmes données dans
 `~/.local/share/local.entreprise.cobblestone` : ta liste de workspaces est commune aux deux.
 
 ### Crash ou fenêtre qui se ferme sans message
 
-Les erreurs sont désormais écrites dans `~/.local/share/local.entreprise.cobblestone/logs/cobblestone.log`
-(joins ce fichier à ton rapport de bug). Lance aussi l'AppImage depuis un terminal pour voir stderr.
+Tout est dans `~/.local/share/local.entreprise.cobblestone/logs/` :
+
+| Fichier | Contenu |
+|---|---|
+| `cobblestone.log` | le journal de l'application, horodaté en heure locale avec son décalage (`+01:00`) |
+| `stderr.log` | la sortie d'erreur native de la session en cours : GLib, GTK, WebKitGTK, glibc |
+| `stderr.previous.log` | la même chose pour la session précédente |
+
+Un crash natif (`malloc(): …`, `Gdk-Message: …`) ne laisse rien dans `cobblestone.log` : sa cause
+est la dernière ligne de `stderr.previous.log` au lancement suivant. Lancée depuis un terminal,
+l'application garde sa sortie d'erreur à l'écran et n'écrit pas `stderr.log`.
 
 Au lancement qui suit un crash, Cobblestone le signale et propose **Voir le journal** et
 **Signaler le problème** : ce bouton ouvre le formulaire de bug GitHub prérempli avec la version,
-le système et la fin du journal — relis-le avant d'envoyer, il peut contenir des chemins de fichiers.
-Les modifications non enregistrées sont copiées à part environ une seconde après la frappe : leur
-restauration est proposée au même moment.
+le système, la fin du journal et celle de `stderr.previous.log` — relis-le avant d'envoyer, il peut
+contenir des chemins de fichiers. Les modifications non enregistrées sont copiées à part environ
+une seconde après la frappe : leur restauration est proposée au même moment.
 
-Si le crash est natif (`malloc(): unaligned tcache chunk`, erreurs `EGL`/`Iris` — voir #18),
-il vient du rendu WebKitGTK/Mesa et non de l'application. Essaie de désactiver
-l'accélération graphique de la webview :
+Si le crash natif mentionne `EGL`/`Iris` (voir #18), il vient du rendu WebKitGTK/Mesa et non de
+l'application. Essaie de désactiver l'accélération graphique de la webview :
 
 ```bash
 WEBKIT_DISABLE_DMABUF_RENDERER=1 ./cobblestone_x.y.z_amd64.AppImage
@@ -115,6 +128,9 @@ directement ; tu gardes la main complète sur tes commits. Le seul appel à Git 
   `git` est dans ton PATH. Lecture seule.
 - **Édition en parallèle** — modifier un fichier dans ton IDE pendant que Cobblestone est
   ouvert : l'arborescence et le graphe doivent se rafraîchir tout seuls
+- **Au repos** — un workspace ouvert, rien ne bouge : Cobblestone ne doit pas consommer de
+  processeur (`top`). Ouvrir **Fichiers** (Nautilus) sur le même dossier ne doit rien
+  déclencher (#44)
 
 Un essai sur un **gros dossier** (plusieurs centaines de fichiers) serait particulièrement
 instructif : l'indexation est en JavaScript et n'a encore jamais été mesurée à cette

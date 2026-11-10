@@ -683,6 +683,47 @@ button {
   outline: none;
 }
 
+/* Diagramme Mermaid : rendu par défaut, bascule vers le code en haut à droite */
+.mdx-block__toggle {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 1;
+  display: none;
+}
+
+.mdx-block--mermaid .mdx-block__toggle {
+  display: inline-flex;
+}
+
+.mdx-block--mermaid .mdx-block__label {
+  display: none;
+}
+
+/* Le haut de l'aperçu est laissé à la bascule, qui masquerait le diagramme. */
+.mdx-block__preview {
+  display: none;
+  padding: 38px 12px 12px;
+  overflow-x: auto;
+}
+
+.mdx-block[data-view='preview'] .mdx-block__preview {
+  display: block;
+}
+
+/* Masqué mais focalisable : Editor.js peut y placer le curseur, ce qui ramène
+   au code (voir MdxBlockTool). */
+.mdx-block[data-view='preview'] .mdx-block__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  opacity: 0;
+  pointer-events: none;
+}
+
 /* Menu d'émojis (WYSIWYG : positionné au curseur ; source : sous la zone) */
 .emoji-menu {
   z-index: 20;

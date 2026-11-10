@@ -42,7 +42,7 @@ export function CrashNotice() {
           type="button"
           className="button button--primary"
           onClick={() => {
-            void reportCrash(DESCRIPTION);
+            void reportCrash(DESCRIPTION, { previousSession: true });
             setVisible(false);
           }}
         >
